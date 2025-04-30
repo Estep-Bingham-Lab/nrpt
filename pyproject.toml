@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/miguelbiron/nrpt.git"
+Repository = "https://github.com/Estep-Bingham-Lab/nrpt.git"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
