@@ -6,11 +6,7 @@ from jax import numpy as jnp
 from jax import lax
 from jax import random
 
-from numpygeons import toy_examples
-from numpygeons.bridge import loop_sample
 from numpyro.util import is_prng_key
-
-from autostep import autohmc
 
 PTState = namedtuple(
     "PTState",
@@ -129,31 +125,11 @@ def init_swap_group_actions(n_replicas):
     ])
     return {0: idx_even_group_action, 1: idx_odd_group_action}
 
-# test
-n_replicas = 4
-n_refresh = 32
-rng_key = random.key(1)
-model, model_args, model_kwargs = toy_examples.eight_schools_example()
-kernel = autohmc.AutoMALA(model, init_inv_temp=1.0)
-pt_state = init_pt_state(kernel, rng_key, n_replicas)
-pt_state
-
-# scan
-scan_idx = 1
 
 def scan(scan_idx, pt_state):
     pass
 
-# TODO: do iid sampling at inv_temp=0
-def exploration_step(kernel, replica_states, n_refresh, model_args, model_kwargs):
-    p_loop_sample = partial(
-        loop_sample, 
-        kernel, 
-        n_refresh=n_refresh, 
-        model_args=model_args, 
-        model_kwargs=model_kwargs
-    )
-    return jax.vmap(p_loop_sample)(replica_states)
+
 
 # Communication step
 #  
