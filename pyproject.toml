@@ -1,0 +1,22 @@
+[project]
+name = "nrpt"
+version = "0.1.0"
+description = "A NumPyro implementation of Non-Reversible Parallel Tempering (NRPT)"
+authors = [
+    {name = "Miguel Biron-Lattes",email = "miguelbl9@gmail.com"}
+]
+license = "Apache-2.0"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "jax",
+    "numpyro",
+    "autostep @ git+https://github.com/UBC-Stat-ML/autostep.git"
+]
+
+[project.urls]
+Repository = "https://github.com/miguelbiron/nrpt.git"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
