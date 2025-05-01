@@ -22,8 +22,8 @@ def loop_sample(kernel, init_state, n_refresh, model_args, model_kwargs):
         length=n_refresh
     )[0]
 
-# TODO: do iid sampling at inv_temp=0
-def exploration_step(kernel, pt_state, model_args, model_kwargs):
+# TODO: do iid sampling at chain_idx=0
+def exploration_step(kernel, pt_state, n_refresh, model_args, model_kwargs):
     p_loop_sample = partial(
         loop_sample, 
         kernel, 
@@ -31,4 +31,4 @@ def exploration_step(kernel, pt_state, model_args, model_kwargs):
         model_args=model_args, 
         model_kwargs=model_kwargs
     )
-    return jax.vmap(p_loop_sample)(replica_states)
+    return jax.vmap(p_loop_sample)(pt_state.replica_states)

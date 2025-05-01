@@ -1,42 +1,7 @@
-from collections import namedtuple
-from functools import partial
-
-import jax
 from jax import numpy as jnp
 from jax import lax
 from jax import random
 
-from numpyro.util import is_prng_key
-
-PTState = namedtuple(
-    "PTState",
-    [
-        "replica_states",
-        "replica_to_chain_idx",
-        "swap_group_actions",
-        "rng_key"
-    ],
-)
-"""
-A :func:`~collections.namedtuple` defining the state of a Parallel Tempering
-ensemble. It consists of the fields:
-
- - **replica_states** - jhfg.
- - **replica_to_chain_idx** - jhfg.
- - **swap_group_actions** - jhfg.
- - **rng_key** - jhfg.
-"""
-
-def init_pt_state(kernel, rng_key, n_replicas):
-    swap_group_actions = init_swap_group_actions(n_replicas)
-    rng_key, init_key = random.split(rng_key)
-    replica_states = init_replica_states(
-        kernel, init_key, n_replicas, model_args, model_kwargs
-    )
-    replica_states, replica_to_chain_idx = init_schedule(replica_states)
-    return PTState(
-        replica_states, replica_to_chain_idx, swap_group_actions, rng_key
-    )
 
 # core swap mechanism
 # Note: `swap_idx` and `swap_decision` must always refer to the same swap.
@@ -67,70 +32,6 @@ def swap_scan_fn(carry, x):
     return (new_replica_idx, new_swap_idx, new_swap_decision), new_chain_idx
 
 
-def init_replica_states(kernel, rng_key, n_replicas, model_args, model_kwargs):
-    # use the kernel initialization to get a prototypical state
-    prototype_init_state = kernel.init(rng_key, 0, None, model_args, model_kwargs)
-
-    # extend the prototypical state to all replicas
-    return jax.tree.map(
-        lambda xs: (
-            random.split(xs, n_replicas) 
-            if is_prng_key(xs)
-            else lax.broadcast(xs, (n_replicas,))
-        ),
-        prototype_init_state
-    )
-
-def init_schedule(replica_states):
-    n_replicas = len(replica_states.inv_temp)
-    replica_to_chain_idx = jnp.arange(n_replicas)    # init to identity permutation
-    inv_temp_schedule = jnp.linspace(0,1,n_replicas) # init to uniform grid
-    replica_states = replica_states._replace(inv_temp=inv_temp_schedule)
-    return replica_states, replica_to_chain_idx
-
-# define DEO swap actions
-# maximal proposed change if all swaps are accepted
-# examples:
-# n_replicas=5:
-# E: [0,1,2,3,4] -> identity perm
-#    [1,0,3,2,4] -> all swaps acc perm == even group action
-# O: [0,1,2,3,4] -> identity perm
-#    [0,2,1,4,3] -> all swaps acc perm == odd group action 
-# n_replicas=6:
-# E: [0,1,2,3,4,5] -> identity perm
-#    [1,0,3,2,5,4] -> all swaps acc perm == even group action
-# O: [0,1,2,3,4,5] -> identity perm
-#    [0,2,1,4,3,5] -> all swaps acc perm == odd group action
-# n_replicas=7:
-# E: [0,1,2,3,4,5,6] -> identity perm
-#    [1,0,3,2,5,4,6] -> all swaps acc perm == even group action
-# O: [0,1,2,3,4,5,6] -> identity perm
-#    [0,2,1,4,3,6,5] -> all swaps acc perm == odd group action
-def init_swap_group_actions(n_replicas):
-    idx_even_group_action = jnp.array([
-        (
-            i - 1 if i%2 else
-            i + 1 if i<n_replicas-1 else
-            i
-        ) 
-        for i in range(n_replicas)
-    ])
-    idx_odd_group_action = jnp.array([
-        (
-            min(i + 1, n_replicas-1) if i%2 else
-            i - 1 if i > 0 else
-            i      
-        ) 
-        for i in range(n_replicas)
-    ])
-    return {0: idx_even_group_action, 1: idx_odd_group_action}
-
-
-def scan(scan_idx, pt_state):
-    pass
-
-
-
 # Communication step
 #  
 # acc prob of swapping 2 states is proportional to ratio
@@ -152,12 +53,12 @@ def scan(scan_idx, pt_state):
 #   U < ratio <=> E := -logU = > -log(ratio) =: nlaccr
 # where E ~ Exp(1). Finally, the rejection probability can be computed as
 #   R = 1-A = 1-min{1,exp(-nlaccr)}=1-exp(-max{0,nlaccr})
-def communication_step(replica_states, swap_group_actions):
+def communication_step(is_odd_scan, replica_states, swap_group_actions):
     # compute relevant quantities
     # note: these contains all the swaps: [0<->1], [1<->2], [2<->3] => even the 
     # irrelevants for this scan. The reason is that it is faster to compute these
     # in a vectorized fashion. Iow, the savings are not asymptotically relevant;
-    # we'll still do O(n_replicas) [n_replicas/2] ops but less efficiently.
+    # we'll still do O(n_replicas) ops but less efficiently.
     # Furthermore, we can still use the rejection prob of inactive swaps for
     # adaptation purposes
     inv_temp_schedule = replica_states.inv_temp
@@ -172,12 +73,11 @@ def communication_step(replica_states, swap_group_actions):
 
     # iterate replicas
     # determine the maximal swap group action (i.e., in case all are accepted)
-    is_odd_scan = scan_idx % 2
+    replica_to_chain_idx = replica_states.replica_to_chain_idx
     idx_group_action = swap_group_actions[is_odd_scan]
     proposed_replica_to_chain_idx = replica_to_chain_idx[idx_group_action]
-
     
-    # resolve new chain indices
+    # resolve new chain indices and update replica states
     _, new_replica_to_chain_idx = lax.scan(
         swap_scan_fn,
         xs=(
@@ -187,3 +87,9 @@ def communication_step(replica_states, swap_group_actions):
         ),
         init=(0, is_odd_scan, swap_decisions[is_odd_scan]) # need to skip the [0<->1] swap in odd scans
     )
+    replica_states = replica_states._replace(
+        replica_to_chain_idx = new_replica_to_chain_idx
+    )
+
+    return (replica_states, swap_reject_probs)
+
