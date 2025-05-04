@@ -24,11 +24,15 @@ def loop_sample(kernel, init_state, n_refresh, model_args, model_kwargs):
 
 # TODO: do iid sampling at chain_idx=0
 def exploration_step(kernel, pt_state, n_refresh, model_args, model_kwargs):
-    p_loop_sample = partial(
-        loop_sample, 
-        kernel, 
-        n_refresh=n_refresh, 
-        model_args=model_args, 
-        model_kwargs=model_kwargs
+    vmap_loop_sample = jax.vmap(
+        partial(
+            loop_sample, 
+            kernel, 
+            n_refresh=n_refresh, 
+            model_args=model_args, 
+            model_kwargs=model_kwargs
+        )
     )
-    return jax.vmap(p_loop_sample)(pt_state.replica_states)
+    return pt_state._replace(
+        replica_states = vmap_loop_sample(pt_state.replica_states)
+    )

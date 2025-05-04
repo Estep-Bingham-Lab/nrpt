@@ -110,8 +110,7 @@ def init_replica_states(kernel, rng_key, n_replicas, model_args, model_kwargs):
         prototype_init_state
     )
 
-def init_schedule(replica_states):
-    n_replicas = len(replica_states.inv_temp)
+def init_schedule(replica_states, n_replicas):
     replica_to_chain_idx = jnp.arange(n_replicas)    # init to identity permutation
     inv_temp_schedule = jnp.linspace(0,1,n_replicas) # init to uniform grid
     replica_states = replica_states._replace(inv_temp=inv_temp_schedule)
@@ -122,7 +121,9 @@ def init_pt_state(kernel, rng_key, n_replicas, model_args, model_kwargs):
     replica_states = init_replica_states(
         kernel, init_key, n_replicas, model_args, model_kwargs
     )
-    replica_states, replica_to_chain_idx = init_schedule(replica_states)
+    replica_states, replica_to_chain_idx = init_schedule(
+        replica_states, n_replicas
+    )
     stats = statistics.PTStats(1, 1, jnp.zeros(n_replicas-1))
     return PTState(replica_states, replica_to_chain_idx, rng_key, stats)
 

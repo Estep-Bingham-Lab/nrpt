@@ -27,3 +27,16 @@ consists of the fields:
  - **round_idx** - jhfg.
  - **mean_round_rej_probs** - jhfg.
 """
+
+def end_of_scan_stats_update(pt_state, swap_reject_probs):
+    stats = pt_state.stats
+    new_scan_idx = stats.scan_idx + 1
+    new_mean_round_rej_probs = stats.mean_round_rej_probs + (
+        swap_reject_probs - stats.mean_round_rej_probs
+    ) / new_scan_idx
+    return pt_state._replace(
+        stats = stats._replace(
+            scan_idx = new_scan_idx,
+            mean_round_rej_probs = new_mean_round_rej_probs
+        )
+    )

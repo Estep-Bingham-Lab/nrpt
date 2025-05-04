@@ -2,7 +2,6 @@ from jax import numpy as jnp
 from jax import lax
 from jax import random
 
-
 # core swap mechanism
 # Note: `swap_idx` and `swap_decision` must always refer to the same swap.
 def swap_scan_fn(carry, x):
@@ -53,31 +52,37 @@ def swap_scan_fn(carry, x):
 #   U < ratio <=> E := -logU = > -log(ratio) =: nlaccr
 # where E ~ Exp(1). Finally, the rejection probability can be computed as
 #   R = 1-A = 1-min{1,exp(-nlaccr)}=1-exp(-max{0,nlaccr})
-def communication_step(is_odd_scan, replica_states, swap_group_actions):
-    # compute relevant quantities
+def communication_step(pt_state, is_odd_scan, swap_group_actions):
+    # compute swap probabilities
     # note: these contains all the swaps: [0<->1], [1<->2], [2<->3] => even the 
     # irrelevants for this scan. The reason is that it is faster to compute these
     # in a vectorized fashion. Iow, the savings are not asymptotically relevant;
     # we'll still do O(n_replicas) ops but less efficiently.
     # Furthermore, we can still use the rejection prob of inactive swaps for
     # adaptation purposes
+    replica_states = pt_state.replica_states
     inv_temp_schedule = replica_states.inv_temp
     n_replicas = len(inv_temp_schedule) 
     delta_inv_temp = inv_temp_schedule[1:] - inv_temp_schedule[:-1]
     delta_LL = replica_states.log_lik[1:] - replica_states.log_lik[:-1]
-    accept_thresholds = delta_inv_temp * delta_LL
+    accept_thresholds = delta_inv_temp * delta_LL # == -log(accept ratio)
     swap_reject_probs = -lax.expm1(-lax.max(0., accept_thresholds))
-    rng_key, exp_key = random.split(rng_key)
+    
+    # sample swap decisions
+    rng_key, exp_key = random.split(pt_state.rng_key)
     randexp_vars = random.exponential(exp_key, n_replicas-1)
     swap_decisions = randexp_vars > accept_thresholds
 
-    # iterate replicas
-    # determine the maximal swap group action (i.e., in case all are accepted)
-    replica_to_chain_idx = replica_states.replica_to_chain_idx
-    idx_group_action = swap_group_actions[is_odd_scan]
+    # determine the maximal swap group action (i.e., in case all were accepted)
+    replica_to_chain_idx = pt_state.replica_to_chain_idx
+    idx_group_action = jnp.where( # sadly this verbosity is needed, as the simpler `swap_group_actions[is_odd_scan]` fails during compilation: "unhashable type: 'DynamicJaxprTracer`"
+        is_odd_scan,
+        swap_group_actions[1],
+        swap_group_actions[0]
+    )
     proposed_replica_to_chain_idx = replica_to_chain_idx[idx_group_action]
     
-    # resolve new chain indices and update replica states
+    # resolve new chain indices
     _, new_replica_to_chain_idx = lax.scan(
         swap_scan_fn,
         xs=(
@@ -87,9 +92,12 @@ def communication_step(is_odd_scan, replica_states, swap_group_actions):
         ),
         init=(0, is_odd_scan, swap_decisions[is_odd_scan]) # need to skip the [0<->1] swap in odd scans
     )
-    replica_states = replica_states._replace(
+
+    # update prng key and replica->chain map
+    pt_state = pt_state._replace(
+        rng_key = rng_key,
         replica_to_chain_idx = new_replica_to_chain_idx
     )
 
-    return (replica_states, swap_reject_probs)
+    return (pt_state, swap_reject_probs)
 
