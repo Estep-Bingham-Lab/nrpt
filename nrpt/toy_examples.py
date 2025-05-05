@@ -46,17 +46,17 @@ def eight_schools_example():
 # Expected value of the concentration at a time after the start of reaction
 #   m(t) = (km0/(delta-beta))[exp(-beta(t-t0)) - exp(-delta(t-t0))]
 # To avoid loss of precision from the `exp` difference, we can rewrite as
-#   (e^{-betaT}-e^{-deltaT}) = -e^{-beta T}expm1{-(beta-delta)T}
-#                            =  e^{-deltaT}expm1{ (delta-beta)T}
+#   (e^{-betaT}-e^{-deltaT}) = e^{-beta T}[1-exp{-(delta-beta)T}] =-e^{-beta T}expm1{-(delta-beta)T}
+#                            = e^{-deltaT}[exp{ (delta-beta)T}-1] = e^{-deltaT}expm1{ (delta-beta)T}
 # Both expressions are valid. We use the first one when delta>beta, and the
 # second one otherwise. Since beta,delta>0, this approach ensures that both
-# exponentials hace negative arguments and thus never blow up.
+# exponentials have negative arguments and thus never blow up.
 def _mrna_mean_fn(km0, delta, beta, rel_ts):
     diff = delta-beta
     return (km0/diff)*lax.cond(
         diff>0,
-        lambda t: -lax.exp(-t[1]*t[2])*lax.expm1(-diff*t[2]),
-        lambda t:  lax.exp(-t[0]*t[2])*lax.expm1( diff*t[2]),
+        lambda t: -lax.exp(-t[1]*t[2])*lax.expm1(-t[3]*t[2]),
+        lambda t:  lax.exp(-t[0]*t[2])*lax.expm1( t[3]*t[2]),
         (delta, beta, rel_ts, diff)
     )
 

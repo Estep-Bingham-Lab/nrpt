@@ -49,5 +49,7 @@ def pt_round(pt_sampler):
         pt_state,
         length = n_scans_in_round(pt_state.stats.round_idx)
     )[0]
+
+    # collect statistics and do adaptation
     pt_state = statistics.end_of_round_stats_update(pt_state)
     return pt_sampler._replace(pt_state = pt_state)
