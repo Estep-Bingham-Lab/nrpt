@@ -3,7 +3,6 @@ from jax import lax
 from nrpt import exploration
 from nrpt import statistics
 from nrpt import swaps
-from nrpt import utils
 
 def n_scans_in_round(round_idx):
     return 2 ** round_idx
@@ -26,8 +25,7 @@ def pt_scan(
     pt_state = statistics.end_of_scan_stats_update(pt_state, swap_reject_probs)
     return pt_state
 
-# TODO: end of round adaptation
-def pt_round(pt_sampler):
+def pt_round(pt_sampler, n_scans = None):
     (
         kernel, 
         pt_state, 
@@ -49,8 +47,10 @@ def pt_round(pt_sampler):
             None
         ), 
         pt_state,
-        length = n_scans_in_round(pt_state.stats.round_idx)
+        length = (
+            n_scans_in_round(pt_state.stats.round_idx) 
+            if n_scans is None else n_scans
+        )
     )[0]
+    pt_state = statistics.end_of_round_stats_update(pt_state)
     return pt_sampler._replace(pt_state = pt_state)
-
-

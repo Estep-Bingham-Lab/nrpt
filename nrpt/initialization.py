@@ -78,23 +78,23 @@ ensemble. It consists of the fields:
 # O: [0,1,2,3,4,5,6] -> identity perm
 #    [0,2,1,4,3,6,5] -> all swaps acc perm == odd group action
 def init_swap_group_actions(n_replicas):
-    idx_even_group_action = jnp.array([
+    idx_even_group_action = [
         (
             i - 1 if i%2 else
             i + 1 if i<n_replicas-1 else
             i
         ) 
         for i in range(n_replicas)
-    ])
-    idx_odd_group_action = jnp.array([
+    ]
+    idx_odd_group_action = [
         (
             min(i + 1, n_replicas-1) if i%2 else
             i - 1 if i > 0 else
             i      
         ) 
         for i in range(n_replicas)
-    ])
-    return {0: idx_even_group_action, 1: idx_odd_group_action}
+    ]
+    return jnp.array([idx_even_group_action, idx_odd_group_action])
 
 def init_replica_states(kernel, rng_key, n_replicas, model_args, model_kwargs):
     # use the kernel initialization to get a prototypical state

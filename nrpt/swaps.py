@@ -75,11 +75,7 @@ def communication_step(pt_state, is_odd_scan, swap_group_actions):
 
     # determine the maximal swap group action (i.e., in case all were accepted)
     replica_to_chain_idx = pt_state.replica_to_chain_idx
-    idx_group_action = jnp.where( # sadly this verbosity is needed, as the simpler `swap_group_actions[is_odd_scan]` fails during compilation: "unhashable type: 'DynamicJaxprTracer`"
-        is_odd_scan,
-        swap_group_actions[1],
-        swap_group_actions[0]
-    )
+    idx_group_action = swap_group_actions[is_odd_scan]
     proposed_replica_to_chain_idx = replica_to_chain_idx[idx_group_action]
     
     # resolve new chain indices

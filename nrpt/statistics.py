@@ -40,3 +40,13 @@ def end_of_scan_stats_update(pt_state, swap_reject_probs):
             mean_round_rej_probs = new_mean_round_rej_probs
         )
     )
+
+# TODO: schedule adaptation
+def end_of_round_stats_update(pt_state):
+    stats = pt_state.stats
+    return pt_state._replace(
+        stats = stats._replace(
+            scan_idx = 1,
+            round_idx = stats.round_idx + 1
+        )
+    )
