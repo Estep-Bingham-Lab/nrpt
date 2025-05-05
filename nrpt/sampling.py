@@ -25,7 +25,7 @@ def pt_scan(
     pt_state = statistics.end_of_scan_stats_update(pt_state, swap_reject_probs)
     return pt_state
 
-def pt_round(pt_sampler, n_scans = None):
+def pt_round(pt_sampler):
     (
         kernel, 
         pt_state, 
@@ -47,10 +47,7 @@ def pt_round(pt_sampler, n_scans = None):
             None
         ), 
         pt_state,
-        length = (
-            n_scans_in_round(pt_state.stats.round_idx) 
-            if n_scans is None else n_scans
-        )
+        length = n_scans_in_round(pt_state.stats.round_idx)
     )[0]
     pt_state = statistics.end_of_round_stats_update(pt_state)
     return pt_sampler._replace(pt_state = pt_state)

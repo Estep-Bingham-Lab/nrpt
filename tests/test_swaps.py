@@ -27,12 +27,23 @@ class TestSwaps(unittest.TestCase):
             pt_sampler.swap_group_actions[1][pt_sampler.swap_group_actions[0]]
         ))
 
-        # check 2*n_replicas scans give the initial permutation
-        pt_sampler = initialization.PT(kernel, rng_key)
+        # check `n_replicas` scans reverse the initial permutation
+        pt_sampler = initialization.PT(kernel, rng_key, n_replicas=6)
         init_replica_to_chain_idx = pt_sampler.pt_state.replica_to_chain_idx
-        pt_sampler = sampling.pt_round(pt_sampler, 2*len(init_replica_to_chain_idx))
+        pt_sampler = sampling.pt_round(sampling.pt_round(pt_sampler)) # 2 rounds == 2+4=6 scans ==> reverse init array
         self.assertTrue(jnp.all(
             pt_sampler.pt_state.replica_to_chain_idx == 
+            jnp.flip(init_replica_to_chain_idx)
+        ))
+
+        # check 2*n_replicas scans return to the initial permutation
+        pt_sampler = initialization.PT(kernel, rng_key, n_replicas=7)
+        init_replica_to_chain_idx = pt_sampler.pt_state.replica_to_chain_idx
+        pt_sampler = sampling.pt_round(
+            sampling.pt_round(sampling.pt_round(pt_sampler))
+        ) # 3 rounds == 2+4+8=14 scans ==> return to init array
+        self.assertTrue(jnp.all(
+            pt_sampler.pt_state.replica_to_chain_idx ==
             init_replica_to_chain_idx
         ))
 
