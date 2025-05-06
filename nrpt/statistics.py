@@ -1,13 +1,6 @@
 from collections import namedtuple
 
-import jax
 from jax import numpy as jnp
-from jax import lax
-from jax import random
-
-from numpyro.util import is_prng_key
-
-from nrpt import adaptation
 
 ###############################################################################
 # statistics used for adaptation
@@ -18,7 +11,8 @@ PTStats = namedtuple(
     [
         "scan_idx",
         "round_idx",
-        "mean_round_rej_probs",
+        "current_round_rej_probs",
+        "last_round_rej_probs",
         "barrier_estimate"
     ],
 )
@@ -28,12 +22,15 @@ run. It consists of the fields:
 
  - **scan_idx** - jhfg.
  - **round_idx** - jhfg.
- - **mean_round_rej_probs** - jhfg.
+ - **current_round_rej_probs** - jhfg.
+ - **last_round_rej_probs** - jhfg.
  - **barrier_estimate** - jhfg.
 """
 
 def init_state(n_replicas):
-    return PTStats(1, 1, jnp.zeros(n_replicas-1), jnp.array(0.))
+    return PTStats(
+        1, 1, jnp.zeros(n_replicas-1), jnp.zeros(n_replicas-1), jnp.array(0.)
+    )
 
 # TODO: logZ + loglik autocorrelation
 def end_of_scan_stats_update(pt_state, swap_reject_probs):
@@ -42,29 +39,25 @@ def end_of_scan_stats_update(pt_state, swap_reject_probs):
     # update swap rejection probs
     # note: scan_idx starts at 1, so the number of elements in the online 
     # estimator is scan_idx-1
-    new_mean_round_rej_probs = stats.mean_round_rej_probs + (
-        swap_reject_probs - stats.mean_round_rej_probs
+    new_current_round_rej_probs = stats.current_round_rej_probs + (
+        swap_reject_probs - stats.current_round_rej_probs
     ) / stats.scan_idx
 
     return pt_state._replace(
         stats = stats._replace(
             scan_idx = stats.scan_idx + 1,
-            mean_round_rej_probs = new_mean_round_rej_probs
+            current_round_rej_probs = new_current_round_rej_probs
         )
     )
 
-# TODO: explorer adaptation
-def end_of_round_stats_update(pt_state):
-    # update inverse temp schedule targeting equi-rejection
-    pt_state, barrier_estimate = adaptation.adapt_schedule(pt_state)
-    
-    # update the stats object and return
+def end_of_round_stats_update(pt_state, barrier_estimate):
     stats = pt_state.stats
     return pt_state._replace(
         stats = stats._replace(
             scan_idx = 1,
             round_idx = stats.round_idx + 1,
-            mean_round_rej_probs = jnp.zeros_like(stats.mean_round_rej_probs),
+            current_round_rej_probs = jnp.zeros_like(stats.current_round_rej_probs),
+            last_round_rej_probs = stats.current_round_rej_probs,
             barrier_estimate = barrier_estimate
         )
     )

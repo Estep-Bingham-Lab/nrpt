@@ -1,20 +1,28 @@
+from functools import partial
+
 import numpy
+
 from scipy.interpolate import PchipInterpolator
+
+import jax
 from jax import numpy as jnp
 
 def adapt_schedule(pt_state):
+    """
+    Update inverse temperature schedule targeting equi-rejection.
+    """
     # compute the barrier estimates
     # note: add eps to estimated rej probs to enforce strict monotonicity when
     # no rejections are observed
     inv_temp_schedule = pt_state.replica_states.inv_temp
-    mean_round_rej_probs = pt_state.stats.mean_round_rej_probs
-    eps = jnp.finfo(mean_round_rej_probs.dtype).eps
-    cum_mean_round_rej_probs = (mean_round_rej_probs+eps).cumsum()
-    barrier_estimate = cum_mean_round_rej_probs[-1]
+    current_round_rej_probs = pt_state.stats.current_round_rej_probs
+    eps = jnp.finfo(current_round_rej_probs.dtype).eps
+    cum_current_round_rej_probs = (current_round_rej_probs+eps).cumsum()
+    barrier_estimate = cum_current_round_rej_probs[-1]
     normalized_estimated_barrier = jnp.insert(
-        cum_mean_round_rej_probs / cum_mean_round_rej_probs[-1],
+        cum_current_round_rej_probs / cum_current_round_rej_probs[-1],
         0,
-        jnp.zeros_like(cum_mean_round_rej_probs, shape=())
+        jnp.zeros_like(cum_current_round_rej_probs, shape=())
     )
 
     # find the equi-rejection schedule via interpolation
@@ -33,3 +41,13 @@ def adapt_schedule(pt_state):
         )
     )
     return pt_state, barrier_estimate
+
+
+def adapt_explorers(kernel, pt_state):
+    """
+    Adapt the exploration kernels.
+    """
+    new_replica_states = jax.vmap(partial(kernel.adapt, force=True))(
+        pt_state.replica_states
+    )
+    return pt_state._replace(replica_states = new_replica_states)
