@@ -18,6 +18,7 @@ PTSampler = namedtuple(
     [
         "kernel",
         "pt_state",
+        "n_rounds",
         "n_refresh",
         "model_args",
         "model_kwargs",
@@ -30,6 +31,7 @@ consists of the fields:
 
  - **kernel** - jhfg.
  - **pt_state** - jhfg.
+ - **n_rounds** - jhfg.
  - **n_refresh** - jhfg.
  - **model_args** - jhfg.
  - **model_kwargs** - jhfg.
@@ -131,6 +133,7 @@ def PT(
         kernel, 
         rng_key, 
         n_replicas = 10, 
+        n_rounds = 10, 
         n_refresh = 3, 
         model_args = (), 
         model_kwargs = {}
@@ -142,6 +145,7 @@ def PT(
     return PTSampler(
         kernel, 
         pt_state, 
+        n_rounds,
         n_refresh, 
         model_args, 
         model_kwargs,
