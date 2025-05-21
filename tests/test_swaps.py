@@ -3,13 +3,8 @@ import unittest
 from jax import random
 from jax import numpy as jnp
 
-from autostep import autohmc
-
 from nrpt import initialization
 from nrpt import sampling
-from nrpt import toy_examples
-
-from numpyro import infer
 
 from tests import utils as testutils
 
