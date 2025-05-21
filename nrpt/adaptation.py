@@ -1,11 +1,9 @@
 from functools import partial
 
-import numpy
-
-from scipy.interpolate import PchipInterpolator
-
 import jax
 from jax import numpy as jnp
+
+from nrpt import interpolation
 
 def adapt_schedule(pt_state):
     """
@@ -26,12 +24,11 @@ def adapt_schedule(pt_state):
     )
 
     # find the equi-rejection schedule via interpolation
-    # note: need to use scipy as this is not implemented in JAX
-    interpolator = PchipInterpolator(
+    interpolator = interpolation.build_pchip_interpolator(
         normalized_estimated_barrier, inv_temp_schedule
     )
-    new_inv_temp_schedule = jnp.array(
-        interpolator(numpy.linspace(0, 1, len(inv_temp_schedule)))
+    new_inv_temp_schedule = interpolation.interpolate(
+        interpolator, jnp.linspace(0, 1, len(inv_temp_schedule))
     )
 
     # update schedule and return with barrier estimate
