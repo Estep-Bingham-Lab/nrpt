@@ -9,34 +9,46 @@ def adapt_schedule(pt_state):
     """
     Update inverse temperature schedule targeting equi-rejection.
     """
+    # We need the map
+    #   Chain -> inv_temp == Chain -> Replica -> inv_temp
+    chain_to_replica_idx = pt_state.chain_to_replica_idx
+    inv_temp_schedule = pt_state.replica_states.inv_temp[chain_to_replica_idx]
+    n_replicas = len(inv_temp_schedule)
+    current_round_rej_probs = pt_state.stats.current_round_rej_probs
+    
     # compute the barrier estimates
     # note: add eps to estimated rej probs to enforce strict monotonicity when
     # no rejections are observed
-    inv_temp_schedule = pt_state.replica_states.inv_temp
-    current_round_rej_probs = pt_state.stats.current_round_rej_probs
-    eps = jnp.finfo(current_round_rej_probs.dtype).eps
+    result_dtype = current_round_rej_probs.dtype
+    eps = jnp.finfo(result_dtype).eps
     cum_current_round_rej_probs = (current_round_rej_probs+eps).cumsum()
     barrier_estimate = cum_current_round_rej_probs[-1]
     normalized_estimated_barrier = jnp.insert(
-        cum_current_round_rej_probs / cum_current_round_rej_probs[-1],
-        0,
-        jnp.zeros_like(cum_current_round_rej_probs, shape=())
+        cum_current_round_rej_probs[:-1] / barrier_estimate,
+        jnp.array([0, n_replicas-1]),
+        jnp.arange(2, dtype=result_dtype) # force endpoints to be exactly (0,1) to avoid interpolator issues
     )
 
     # find the equi-rejection schedule via interpolation
+    # 1) fit: P(cumulative_barrier) = schedule (with P monotonic)
+    # 2) update: new_schedule = P(linspace in [0,1])
     interpolator = interpolation.build_pchip_interpolator(
         normalized_estimated_barrier, inv_temp_schedule
     )
     new_inv_temp_schedule = interpolation.interpolate(
-        interpolator, jnp.linspace(0, 1, len(inv_temp_schedule))
+        interpolator, jnp.linspace(0, 1, n_replicas, dtype=result_dtype)
     )
+    new_inv_temp_schedule = new_inv_temp_schedule.at[-1].set(1.) # force it to be exactly 1 (without it, it differs by ~1e-7)
 
-    # update schedule and return with barrier estimate
+    # update inv_temps in replicas: need the map
+    # replica -> new inv temp == replica -> chain -> new_inv_temp
     pt_state = pt_state._replace(
         replica_states = pt_state.replica_states._replace(
-            inv_temp = new_inv_temp_schedule
+            inv_temp = new_inv_temp_schedule[pt_state.replica_to_chain_idx]
         )
     )
+
+    # return updated state with barrier estimate
     return pt_state, barrier_estimate
 
 
