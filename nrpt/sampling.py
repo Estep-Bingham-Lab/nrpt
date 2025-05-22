@@ -1,3 +1,5 @@
+from functools import partial
+
 import jax
 from jax import lax
 from jax import numpy as jnp
@@ -65,9 +67,11 @@ def pt_scan(
     pt_state = statistics.end_of_scan_stats_update(pt_state, swap_reject_probs)
 
     # if end of run, do adaptation
+    # note: scan_idx was just updated in prev line, so we need to substract 1
+    # to get the index of the scan that just finished
     pt_state = lax.cond(
-        pt_state.stats.scan_idx == n_scans_in_round(pt_state.stats.round_idx),
-        lambda s: end_of_round_adaptation(kernel, s),
+        pt_state.stats.scan_idx-1 == n_scans_in_round(pt_state.stats.round_idx),
+        partial(end_of_round_adaptation, kernel),
         lambda s: s,
         pt_state
     )

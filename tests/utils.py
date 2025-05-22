@@ -18,3 +18,6 @@ class NoneExplorer(infer.mcmc.MCMCKernel):
     
     def sample(self, state, *args):
         return state
+    
+    def adapt(self, state, *args, **kwargs):
+        return state

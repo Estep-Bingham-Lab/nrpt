@@ -62,3 +62,26 @@ def end_of_round_stats_update(pt_state, barrier_estimate):
         )
     )
 
+# TODO: logZ
+# For b \neq b',
+# Z(b') = E_0[L(x)^b'] = E_0[exp(b'*l(x))]
+# = E_0[exp(b*l(x))exp((b'-b)*l(x))]
+# = Z(b)E_b[exp((b'-b)*l(x))]
+# <=>
+# Z(b')/Z(b) = E_b[exp((b'-b)*l(x))]
+# <=> (by relabeling b' <-> b)
+# Z(b')/Z(b) = E_b'[exp((b-b')*l(x))]^{-1}
+# Furthermore, since Z(0)=1, by telescoping prop
+# Z(1) = prod_i Z(b_{i})/Z(b_{i-1})
+# = exp[sum_i logZ(b_{i})- logZ(b_{i-1})]
+# so
+# logZ = logZ(1) = sum_i DlogZ_i
+# where
+# DlogZ_i := logZ(b_{i+1})- logZ(b_{i})]
+# = log(E_b[exp((b'-b)*l(x))]) \approx -logN + logsumexp[(b'-b)*l(x_n)],   x_n~pi(b),   n=1..N
+# = -log(E_b'[exp((b-b')*l(x))]) \approx logN - logsumexp[(b-b')*l(x_n)],  x_n~pi(b'),  n=1..N
+# note:
+# logsumexp(x[1:N]) = log(sum_i^N exp(xi)) 
+# = log(exp(xN) + exp(log[sum_i^{N-1} exp(xi)])) 
+# = logaddexp(xN, logsumexp(x[1:N-1]))  ---> online estimator
+# and logsumexp(x[1:1]) = x[1:1]
