@@ -9,7 +9,10 @@ def adapt_schedule(pt_state):
     """
     Update inverse temperature schedule targeting equi-rejection.
     """
-    inv_temp_schedule = pt_state.replica_states.inv_temp
+    # We need the map
+    #   Chain -> inv_temp == Chain -> Replica -> inv_temp
+    chain_to_replica_idx = pt_state.chain_to_replica_idx
+    inv_temp_schedule = pt_state.replica_states.inv_temp[chain_to_replica_idx]
     n_replicas = len(inv_temp_schedule)
     current_round_rej_probs = pt_state.stats.current_round_rej_probs
     
@@ -37,12 +40,15 @@ def adapt_schedule(pt_state):
     )
     new_inv_temp_schedule = new_inv_temp_schedule.at[-1].set(1.) # force it to be exactly 1 (without it, it differs by ~1e-7)
 
-    # update schedule and return with barrier estimate
+    # update inv_temps in replicas: need the map
+    # replica -> new inv temp == replica -> chain -> new_inv_temp
     pt_state = pt_state._replace(
         replica_states = pt_state.replica_states._replace(
-            inv_temp = new_inv_temp_schedule
+            inv_temp = new_inv_temp_schedule[pt_state.replica_to_chain_idx]
         )
     )
+
+    # return updated state with barrier estimate
     return pt_state, barrier_estimate
 
 

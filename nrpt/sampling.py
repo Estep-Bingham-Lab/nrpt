@@ -30,12 +30,12 @@ def end_of_round_adaptation(kernel, pt_state):
     # print info
     # TODO: print a header before the fist call to this (in `run`?)
     jax.debug.print(
-        "Round {i} \t Λ = {b:.2f} \t RejProbs (min/mean) = {rm:.1f}/{rM:.1f}",
+        "Round {i} \t Λ = {b:.2f} \t RejProbs (mean/max) = {rm:.1f}/{rM:.1f}",
         ordered=True,
         i=ending_round_idx,
         b=barrier_estimate,
-        rm=pt_state.stats.last_round_rej_probs.min(),
-        rM=pt_state.stats.last_round_rej_probs.mean()
+        rm=pt_state.stats.last_round_rej_probs.mean(),
+        rM=pt_state.stats.last_round_rej_probs.max()
     )
 
     return pt_state

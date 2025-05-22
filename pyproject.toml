@@ -18,5 +18,5 @@ dependencies = [
 Repository = "https://github.com/Estep-Bingham-Lab/nrpt.git"
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"

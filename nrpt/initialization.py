@@ -43,6 +43,7 @@ PTState = namedtuple(
     [
         "replica_states",
         "replica_to_chain_idx",
+        "chain_to_replica_idx",
         "rng_key",
         "stats"
     ],
@@ -53,6 +54,7 @@ ensemble. It consists of the fields:
 
  - **replica_states** - jhfg.
  - **replica_to_chain_idx** - jhfg.
+ - **chain_to_replica_idx** - jhfg.
  - **rng_key** - jhfg.
  - **stats** - jhfg.
 """
@@ -114,20 +116,27 @@ def init_replica_states(kernel, rng_key, n_replicas, model_args, model_kwargs):
 
 def init_schedule(replica_states, n_replicas):
     replica_to_chain_idx = jnp.arange(n_replicas)    # init to identity permutation
+    chain_to_replica_idx = jnp.arange(n_replicas)    # id = argsort(id)
     inv_temp_schedule = jnp.linspace(0,1,n_replicas) # init to uniform grid
     replica_states = replica_states._replace(inv_temp=inv_temp_schedule)
-    return replica_states, replica_to_chain_idx
+    return replica_states, replica_to_chain_idx, chain_to_replica_idx
 
 def init_pt_state(kernel, rng_key, n_replicas, model_args, model_kwargs):
     rng_key, init_key = random.split(rng_key)
     replica_states = init_replica_states(
         kernel, init_key, n_replicas, model_args, model_kwargs
     )
-    replica_states, replica_to_chain_idx = init_schedule(
+    replica_states, replica_to_chain_idx, chain_to_replica_idx = init_schedule(
         replica_states, n_replicas
     )
     stats = statistics.init_state(n_replicas)
-    return PTState(replica_states, replica_to_chain_idx, rng_key, stats)
+    return PTState(
+        replica_states, 
+        replica_to_chain_idx, 
+        chain_to_replica_idx, 
+        rng_key, 
+        stats
+    )
 
 def PT(
         kernel, 
