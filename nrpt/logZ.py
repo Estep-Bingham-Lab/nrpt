@@ -10,13 +10,14 @@ from nrpt import interpolation
 #    = Z(b)E_b[exp((b'-b)*l(x))]
 # <=>
 #   Z(b')/Z(b) = E_b[exp((b'-b)*l(x))]
-# <=> (by relabeling b' <-> b)
-#   Z(b')/Z(b) = E_b'[exp((b-b')*l(x))]^{-1}
+# <=> (by inverting and relabeling b' <-> b)
+#   Z(b')/Z(b) = E_b'[exp((b-b')*l(x))]^{-1} 
+#              = E_b'[exp(-(b'-b)*l(x))]^{-1}
 # Furthermore, since Z(0)=1, by telescoping prop
 #   Z(1) = prod_i Z(b_{i})/Z(b_{i-1})
 #    = exp[sum_i logZ(b_{i})- logZ(b_{i-1})]
-# so
-#   logZ = logZ(1) = sum_i DlogZ_i
+# Hence
+#   logZ(1) = sum_i DlogZ_i
 # where
 #   DlogZ_i := logZ(b_{i+1})- logZ(b_{i})]
 #    = log(E_b[exp((b'-b)*l(x))]) \approx -logN + logsumexp_n[(b'-b)*l(x_n^{b})],   x_n^{b}  ~pi(b),   n=1..N

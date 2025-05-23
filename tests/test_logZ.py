@@ -24,6 +24,7 @@ class TestLogZ(unittest.TestCase):
         # use exact logpdfs so true logZ = dlogZ = 0.
         lo_key, hi_key = random.split(random.key(254))
         mu = 1.
+        tru_logZ = 0.
         N = 2**16
         x_lo = random.normal(lo_key, N)
         x_hi = mu + random.normal(hi_key, N)
@@ -39,7 +40,13 @@ class TestLogZ(unittest.TestCase):
             jnp.isclose(out[0,1], jax.scipy.special.logsumexp(-log_liks[:,1])) # dbeta == 1
         )
         self.assertTrue(
-            jnp.isclose(0., 0.5*(out[0,0]-out[0,1]), atol=1e-2)
+            jnp.isclose(tru_logZ, out[0,0] - jnp.log(N), atol=1e-2)
+        )
+        self.assertTrue(
+            jnp.isclose(tru_logZ, jnp.log(N) - out[0,1], atol=1e-1)
+        )
+        self.assertTrue(
+            jnp.isclose(tru_logZ, 0.5*(out[0,0]-out[0,1]), atol=1e-2)
         )
 
         # same exercise but with an unnormalized loglik
@@ -57,8 +64,16 @@ class TestLogZ(unittest.TestCase):
         log_liks = jnp.array([loglik(x_lo), loglik(x_hi)]).swapaxes(0,1)
         current_round_dlogZ_estimates = logZ.init_estimates(2)
         out = online_update_estimates(current_round_dlogZ_estimates,dbeta,log_liks)
-        self.assertTrue(jnp.isclose(tru_logZ, 0.5*(out[0,0]-out[0,1]), atol=1e-2))
-
+        self.assertTrue(
+            jnp.isclose(tru_logZ, out[0,0] - jnp.log(N), atol=1e-2)
+        )
+        self.assertTrue(
+            jnp.isclose(tru_logZ, jnp.log(N) - out[0,1], atol=1e-2)
+        )
+        self.assertTrue(
+            jnp.isclose(tru_logZ, 0.5*(out[0,0]-out[0,1]), atol=1e-2)
+        )
+        
 if __name__ == '__main__':
     unittest.main()
     
