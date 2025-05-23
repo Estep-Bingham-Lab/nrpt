@@ -56,7 +56,6 @@ class TestLogZ(unittest.TestCase):
         loglik = lambda x: mu*x
         log_liks = jnp.array([loglik(x_lo), loglik(x_hi)]).swapaxes(0,1)
         current_round_dlogZ_estimates = logZ.init_estimates(2)
-        dbeta = jnp.array([1.])
         out = online_update_estimates(current_round_dlogZ_estimates,dbeta,log_liks)
         self.assertTrue(jnp.isclose(tru_logZ, 0.5*(out[0,0]-out[0,1]), atol=1e-2))
 
