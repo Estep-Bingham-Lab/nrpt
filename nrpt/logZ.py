@@ -32,15 +32,16 @@ from nrpt import interpolation
 #    := (-logN + logsumexp[(b'-b)*l(x_n^{b})] + logN - logsumexp[(b-b')*l(x_n^{b'})])/2
 #     = (logsumexp[(b'-b)*l(x_n^{b})] - logsumexp[(b-b')*l(x_n^{b'})])/2
 # Let
-#   F :=  logsumexp[(b'-b)*l_n^{b}]
-#   B := -logsumexp[(b-b')*l_n^{b'}] = -logsumexp[-(b'-b)*l_n^{b'}]
-# and l_n^{(b)} := l(x_n)^{(b)}
-# Idea: keep array of size (n_replicas-1) \times 3, with columns (F,B,A) such
+#   L_i := logsumexp_n[ (b_i-b_{i-1})*l_n^{(b_{i-1})}]
+#   R_i := logsumexp_n[-(b_i-b_{i-1})*l_n^{(b_i)}]
+# and l_n^{(b)} := l(x_n)^{(b)}. Then
+#   A_i = 0.5(L_i - R_i)
+#   logZ(b_i) = cumsum(A)_i
+# Idea: keep array of size (n_replicas-1) x 2, with columns (L,R) such
 # that the n-th entry has the log(Z(b_n)/Z(b_{n-1})) estimates
 def update_estimates_vmap_fn_fwd(dlogZ_est_fwd, delta_b, log_lik_at_lower):
     return jnp.logaddexp(delta_b*log_lik_at_lower, dlogZ_est_fwd)
 
-# note: the outer sign is handled in the average not here
 def update_estimates_vmap_fn_bwd(dlogZ_est_bwd, delta_b, log_lik_at_upper):
     return jnp.logaddexp(-delta_b*log_lik_at_upper, dlogZ_est_bwd)
 
@@ -49,11 +50,7 @@ def update_estimates(current_round_dlogZ_estimates, delta_inv_temp, chain_log_li
     assert jnp.ndim(chain_log_liks) == 1
     n_replicas = len(chain_log_liks)
     assert jnp.shape(delta_inv_temp) == (n_replicas-1,)
-    assert jnp.shape(current_round_dlogZ_estimates) == (n_replicas-1, 3)
-
-    # jax.debug.print("old dlogZ: {}", current_round_dlogZ_estimates, ordered=True)
-    # jax.debug.print("dbeta: {}", delta_inv_temp, ordered=True)
-    # jax.debug.print("LL: {}", chain_log_liks, ordered=True)
+    assert jnp.shape(current_round_dlogZ_estimates) == (n_replicas-1, 2)
     
     fwd_new = jax.vmap(update_estimates_vmap_fn_fwd)(
         current_round_dlogZ_estimates[:,0], delta_inv_temp, chain_log_liks[:-1]
@@ -61,16 +58,10 @@ def update_estimates(current_round_dlogZ_estimates, delta_inv_temp, chain_log_li
     bwd_new = jax.vmap(update_estimates_vmap_fn_bwd)(
         current_round_dlogZ_estimates[:,1], delta_inv_temp, chain_log_liks[1:]
     )
-    avg_new = 0.5*(fwd_new - bwd_new) # outer sign of the bwd is handled here 
-    new_current_round_dlogZ_estimates = jnp.array(
-        [fwd_new, bwd_new, avg_new]
-    ).swapaxes(0,1)
-
-    # jax.debug.print("new dlogZ: {}", new_current_round_dlogZ_estimates, ordered=True)
-    return new_current_round_dlogZ_estimates
+    return jnp.array([fwd_new, bwd_new]).swapaxes(0,1)
 
 def init_estimates(n_replicas):
-    return jnp.full((n_replicas-1, 3), -jnp.inf)
+    return jnp.full((n_replicas-1, 2), -jnp.inf)
 
 def empty_estimates(current_round_dlogZ_estimates):
     return jnp.full_like(current_round_dlogZ_estimates, -jnp.inf)
@@ -78,8 +69,10 @@ def empty_estimates(current_round_dlogZ_estimates):
 def fit_interpolator(inv_temp_schedule, current_round_dlogZ_estimates):
     assert jnp.ndim(inv_temp_schedule) == 1
     n_replicas = len(inv_temp_schedule)
-    assert jnp.shape(current_round_dlogZ_estimates) == (n_replicas-1, 3)
-    logZ_estimates = current_round_dlogZ_estimates[:,-1].cumsum()
+    assert jnp.shape(current_round_dlogZ_estimates) == (n_replicas-1, 2)
+    logZ_estimates = 0.5*(
+        current_round_dlogZ_estimates[:,0] - current_round_dlogZ_estimates[:,1]
+    ).cumsum()
     return interpolation.build_pchip_interpolator(
         inv_temp_schedule, 
         jnp.insert(logZ_estimates, 0, 0.)
