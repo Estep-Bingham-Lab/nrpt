@@ -2,6 +2,8 @@ from collections import namedtuple
 
 from jax import numpy as jnp
 
+from nrpt import interpolation
+
 ###############################################################################
 # statistics used for adaptation
 ###############################################################################
@@ -13,7 +15,7 @@ PTStats = namedtuple(
         "round_idx",
         "current_round_rej_probs",
         "last_round_rej_probs",
-        "barrier_estimate"
+        "barrier_fit"
     ],
 )
 """
@@ -24,12 +26,16 @@ run. It consists of the fields:
  - **round_idx** - jhfg.
  - **current_round_rej_probs** - jhfg.
  - **last_round_rej_probs** - jhfg.
- - **barrier_estimate** - jhfg.
+ - **barrier_fit** - jhfg.
 """
 
-def init_state(n_replicas):
+def init_stats(n_replicas):
     return PTStats(
-        1, 1, jnp.zeros(n_replicas-1), jnp.zeros(n_replicas-1), jnp.array(0.)
+        1, 
+        1, 
+        jnp.zeros(n_replicas-1), 
+        jnp.zeros(n_replicas-1),
+        interpolation.empty_interpolator(n_replicas)
     )
 
 # TODO: logZ + loglik autocorrelation
@@ -50,7 +56,7 @@ def end_of_scan_stats_update(pt_state, swap_reject_probs):
         )
     )
 
-def end_of_round_stats_update(pt_state, barrier_estimate):
+def end_of_round_stats_update(pt_state, barrier_fit):
     stats = pt_state.stats
     return pt_state._replace(
         stats = stats._replace(
@@ -58,7 +64,7 @@ def end_of_round_stats_update(pt_state, barrier_estimate):
             round_idx = stats.round_idx + 1,
             current_round_rej_probs = jnp.zeros_like(stats.current_round_rej_probs),
             last_round_rej_probs = stats.current_round_rej_probs,
-            barrier_estimate = barrier_estimate
+            barrier_fit = barrier_fit
         )
     )
 

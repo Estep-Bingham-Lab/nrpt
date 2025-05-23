@@ -40,7 +40,7 @@ class TestSwaps(unittest.TestCase):
         # log_lik= constant, so that swaps are always accepted
         kernel = testutils.NoneExplorer()
         
-        # check 2 scans give even(odd(initial state))
+        # check 1 round gives even(odd(initial state))
         rng_key, run_key = random.split(rng_key)
         pt_sampler = initialization.PT(kernel, run_key, n_rounds=1)
         init_replica_to_chain_idx = pt_sampler.pt_state.replica_to_chain_idx
