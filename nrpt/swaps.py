@@ -148,5 +148,5 @@ def communication_step(pt_state, is_odd_scan, swap_group_actions):
         chain_to_replica_idx = new_chain_to_replica_idx
     )
 
-    return (pt_state, swap_reject_probs)
+    return (pt_state, swap_reject_probs, delta_inv_temp, chain_log_liks)
 

@@ -20,6 +20,8 @@ pip install nrpt @ git+https://github.com/Estep-Bingham-Lab/nrpt.git
 ## TODO
 
 - Capture samples
+- loglik autocorrelation before v. after exploration
 - Measure time elapsed in round 
+- README example with mRNA and pairplot
 - (perhaps related to the above) Rename the `PTStats` to `PTRecorders` and
 organize its entries into sub-recorders depending on their purpose.
