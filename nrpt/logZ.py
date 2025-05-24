@@ -40,11 +40,8 @@ from nrpt import interpolation
 #   logZ(b_i) = cumsum(A)_i
 # Idea: keep array of size (n_replicas-1) x 2, with columns (L,R) such
 # that the n-th entry has the log(Z(b_n)/Z(b_{n-1})) estimates
-def update_estimates_vmap_fn_fwd(dlogZ_est_fwd, delta_b, log_lik_at_lower):
-    return jnp.logaddexp(delta_b*log_lik_at_lower, dlogZ_est_fwd)
-
-def update_estimates_vmap_fn_bwd(dlogZ_est_bwd, delta_b, log_lik_at_upper):
-    return jnp.logaddexp(-delta_b*log_lik_at_upper, dlogZ_est_bwd)
+def update_estimates_vmap_fn(dlogZ_est, delta_b, log_lik):
+    return jnp.logaddexp(delta_b*log_lik, dlogZ_est)
 
 # online update of dlogZ estimates
 def update_estimates(current_round_dlogZ_estimates, delta_inv_temp, chain_log_liks):
@@ -53,11 +50,11 @@ def update_estimates(current_round_dlogZ_estimates, delta_inv_temp, chain_log_li
     assert jnp.shape(delta_inv_temp) == (n_replicas-1,)
     assert jnp.shape(current_round_dlogZ_estimates) == (n_replicas-1, 2)
     
-    fwd_new = jax.vmap(update_estimates_vmap_fn_fwd)(
+    fwd_new = jax.vmap(update_estimates_vmap_fn)(
         current_round_dlogZ_estimates[:,0], delta_inv_temp, chain_log_liks[:-1]
     )
-    bwd_new = jax.vmap(update_estimates_vmap_fn_bwd)(
-        current_round_dlogZ_estimates[:,1], delta_inv_temp, chain_log_liks[1:]
+    bwd_new = jax.vmap(update_estimates_vmap_fn)(
+        current_round_dlogZ_estimates[:,1], -delta_inv_temp, chain_log_liks[1:]
     )
     return jnp.array([fwd_new, bwd_new]).swapaxes(0,1)
 

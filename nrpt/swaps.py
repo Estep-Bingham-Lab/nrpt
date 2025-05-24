@@ -109,7 +109,7 @@ def communication_step(pt_state, is_odd_scan, swap_group_actions):
     delta_LL = jnp.diff(chain_log_liks)
     neg_log_acc_ratio = delta_inv_temp * delta_LL # == -log(accept ratio)
     swap_reject_probs = -lax.expm1(-lax.max(0., neg_log_acc_ratio))
-    
+
     # sample swap decisions
     # note: these are length n_replicas-1, as the last replica can only by a
     # top in a swap---and therefore its decision is the same as the one for the
@@ -134,9 +134,8 @@ def communication_step(pt_state, is_odd_scan, swap_group_actions):
         chain_to_replica_idx, 
         new_replica_to_chain_idx
     )
-
+    
     # update state: prng key, chain-replica maps, and replica inv_temps
-    # jax.debug.print("{}\t{}",new_replica_to_chain_idx,new_chain_to_replica_idx,ordered=True)
     replica_states = replica_states._replace(
         # Replica -> new temp == Replica -> new chain -> temp
         inv_temp = inv_temp_schedule[new_replica_to_chain_idx]
