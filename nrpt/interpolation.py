@@ -5,9 +5,19 @@ from jax import lax
 from jax import numpy as jnp
 
 # define a namedtuple container for a  cubic piece-wise interpolator
+# note: the original response `y` is not strictly needed for interpolation
+# but it's useful for other purposes.
 PiecewiseCubicInterpolator = namedtuple(
-    'PiecewiseCubicInterpolator', ['x', 'coeffs']
+    'PiecewiseCubicInterpolator', ['x', 'y', 'coeffs']
 )
+
+# dummy constructor for initialization
+def empty_interpolator(n):
+    return PiecewiseCubicInterpolator(
+        jnp.zeros(n),
+        jnp.zeros(n),
+        jnp.zeros((n-1,4))
+    )
 
 # constructor
 def build_piecewiese_cubic_poly(x, dx, y, dy_dx, smoothed_slope):
@@ -21,15 +31,15 @@ def build_piecewiese_cubic_poly(x, dx, y, dy_dx, smoothed_slope):
         ]
     ).swapaxes(1,0)
     assert coeffs.shape == (len(dx), 4)
-    return PiecewiseCubicInterpolator(x, coeffs)
+    return PiecewiseCubicInterpolator(x, y, coeffs)
 
 def interpolate(interpolator, x_new):
     """
     Evaluate a piece-wise polynomial interpolator on a set of points `x_new`.
-    IMPORTANT: silent fail when `x_new` is outside the range of the data.
+    IMPORTANT: fails silently when `x_new` is outside the range of the data.
     """
     assert jnp.ndim(x_new) == 1
-    x, coeffs = interpolator
+    x, _, coeffs = interpolator
     intervals = jnp.searchsorted(x, x_new, 'right') - 1
     x_inds = lax.max(0, lax.min(intervals, len(x) - 2))
     return jax.vmap(jnp.polyval)(coeffs[intervals], x_new - x[x_inds])

@@ -21,22 +21,23 @@ def adapt_schedule(pt_state):
     # no rejections are observed
     result_dtype = current_round_rej_probs.dtype
     eps = jnp.finfo(result_dtype).eps
-    cum_current_round_rej_probs = (current_round_rej_probs+eps).cumsum()
-    barrier_estimate = cum_current_round_rej_probs[-1]
+    barrier_estimate = (current_round_rej_probs+eps).cumsum()
+    total_barrier_estimate = barrier_estimate[-1]
     normalized_estimated_barrier = jnp.insert(
-        cum_current_round_rej_probs[:-1] / barrier_estimate,
+        barrier_estimate[:-1] / total_barrier_estimate,
         jnp.array([0, n_replicas-1]),
         jnp.arange(2, dtype=result_dtype) # force endpoints to be exactly (0,1) to avoid interpolator issues
     )
 
     # find the equi-rejection schedule via interpolation
-    # 1) fit: P(cumulative_barrier) = schedule (with P monotonic)
+    # 1) fit: P(norm-cumulative_barrier) = schedule (with P monotonic)
     # 2) update: new_schedule = P(linspace in [0,1])
-    interpolator = interpolation.build_pchip_interpolator(
+    norm_barrier_to_inv_temp_interp = interpolation.build_pchip_interpolator(
         normalized_estimated_barrier, inv_temp_schedule
     )
     new_inv_temp_schedule = interpolation.interpolate(
-        interpolator, jnp.linspace(0, 1, n_replicas, dtype=result_dtype)
+        norm_barrier_to_inv_temp_interp, 
+        jnp.linspace(0, 1, n_replicas, dtype=result_dtype)
     )
     new_inv_temp_schedule = new_inv_temp_schedule.at[-1].set(1.) # force it to be exactly 1 (without it, it differs by ~1e-7)
 
@@ -48,8 +49,14 @@ def adapt_schedule(pt_state):
         )
     )
 
-    # return updated state with barrier estimate
-    return pt_state, barrier_estimate
+    # fit P(inv_temp) = barrier for stats purpose
+    # note: schedule is len n_replicas but barrier_estimate is n_replicas-1
+    inv_temp_to_barrier_interpolator = interpolation.build_pchip_interpolator(
+        inv_temp_schedule, jnp.insert(barrier_estimate, 0, 0.)
+    )
+
+    # return updated state with barrier fit
+    return pt_state, inv_temp_to_barrier_interpolator
 
 
 def adapt_explorers(kernel, pt_state):

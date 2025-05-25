@@ -2,7 +2,6 @@ from functools import partial
 
 import jax
 from jax import lax
-from jax import numpy as jnp
 
 from nrpt import adaptation
 from nrpt import exploration
@@ -15,6 +14,12 @@ def n_scans_in_round(round_idx):
 def total_scans(n_rounds):
     return 2 ** (n_rounds+1) - 2
 
+def total_barrier(barrier_fit):
+    return barrier_fit.y[-1]
+
+def logZ_at_target(logZ_fit):
+    return logZ_fit.y[-1]
+
 def end_of_round_adaptation(kernel, pt_state):
     ending_round_idx = pt_state.stats.round_idx
 
@@ -22,18 +27,19 @@ def end_of_round_adaptation(kernel, pt_state):
     pt_state = adaptation.adapt_explorers(kernel, pt_state)
     
     # adapt schedule
-    pt_state, barrier_estimate = adaptation.adapt_schedule(pt_state)
+    pt_state, barrier_fit = adaptation.adapt_schedule(pt_state)
 
     # collect statistics
-    pt_state = statistics.end_of_round_stats_update(pt_state, barrier_estimate)
+    pt_state = statistics.end_of_round_stats_update(pt_state, barrier_fit)
 
     # print info
     # TODO: print a header before the fist call to this (in `run`?)
     jax.debug.print(
-        "Round {i} \t Λ = {b:.2f} \t RejProbs (mean/max) = {rm:.1f}/{rM:.1f}",
+        "Round {i} \t Λ = {b:.2f} \t logZ = {lZ: .2f} \t RejProbs (mean/max) = {rm:.1f}/{rM:.1f}",
         ordered=True,
         i=ending_round_idx,
-        b=barrier_estimate,
+        b=total_barrier(barrier_fit),
+        lZ=logZ_at_target(pt_state.stats.logZ_fit),
         rm=pt_state.stats.last_round_rej_probs.mean(),
         rM=pt_state.stats.last_round_rej_probs.max()
     )
@@ -57,14 +63,11 @@ def pt_scan(
         kernel, pt_state, n_refresh, model_args, model_kwargs
     )
 
-    # communication
+    # communication and then scan stats update 
     is_odd_scan = pt_state.stats.scan_idx % 2
-    pt_state, swap_reject_probs = swaps.communication_step(
-        pt_state, is_odd_scan, swap_group_actions
+    pt_state = statistics.end_of_scan_stats_update(
+        *swaps.communication_step(pt_state, is_odd_scan, swap_group_actions)
     )
-
-    # store scan statistics
-    pt_state = statistics.end_of_scan_stats_update(pt_state, swap_reject_probs)
 
     # if end of run, do adaptation
     # note: scan_idx was just updated in prev line, so we need to substract 1

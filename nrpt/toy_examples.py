@@ -1,4 +1,6 @@
 from jax import lax
+from jax.scipy.special import betaln, digamma
+
 import jax.numpy as jnp
 import numpyro
 import numpyro.distributions as dist
@@ -18,6 +20,18 @@ def toy_unid_example(n_heads=50, n_flips=100):
     model_args = (n_flips,)
     model_kwargs={"n_heads": n_heads}
     return (model, model_args, model_kwargs)
+
+def binomln(n, k):
+    # https://stackoverflow.com/a/21775412/5443023
+    # Assumes binom(n, k) >= 0
+    return -betaln(1 + n - k, 1 + k) - jnp.log(n + 1)
+
+# https://github.com/Julia-Tempering/Pigeons.jl/blob/main/test/supporting/analytic_solutions.jl
+def toy_unid_exact_logZ(n,y,inv_temp):
+    A = inv_temp*binomln(n,y)
+    B = betaln(inv_temp*y+1,inv_temp*(n-y)+1)
+    C = jnp.log(digamma(inv_temp*n+2) - digamma(inv_temp*y+1))
+    return A+B+C
 
 ##############################################################################
 # eight schools example

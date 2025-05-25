@@ -1,71 +1,54 @@
-import jax
 from jax import numpy as jnp
 from jax import lax
 from jax import random
 
-# core swap mechanism
-# Note: `swap_idx` is the idx of the bottom replica of a swap
-# Note: `swap_idx` and `swap_decision` must always refer to the same swap.
-def swap_scan_fn(carry, x):
-    # replica_idx, swap_idx = 0, is_odd_scan
-    # prop_chain_idx, chain_idx = proposed_replica_to_chain_idx[replica_idx], replica_to_chain_idx[replica_idx]
-    replica_idx, swap_idx, swap_decisions = carry
-    prop_chain_idx, chain_idx = x
-
-    # check swap membership
-    # both False if and only if 
-    #   - replica_idx==0 and this is an odd step
-    #   - replica_idx==n_replicas-1 and it is not part of a swap (i.e., when n_replicas even + is odd swap, or viceversa)
-    is_swap_bottom = jnp.logical_and(
-        swap_idx == replica_idx, 
-        prop_chain_idx != chain_idx # only may be false for excluded endpoints
-    )
-    is_swap_top = swap_idx+1 == replica_idx
-
-    # note: clunky `jnp.logical_*` are needed because they can handle traced
-    # values during compilation, whereas `and`, `or`, etc try to eval them
-    new_chain_idx = lax.select(
-        jnp.logical_and(
-            # note: this can be out of bounds for excluded right endpoint, but 
-            # jax does not error; the actual behavior does not matter since
-            # in this situation the replica is neither top nor bottom
-            swap_decisions[swap_idx],
-            jnp.logical_or(is_swap_bottom, is_swap_top)
-        ),
-        prop_chain_idx,
-        chain_idx
-    )
-
-    # update swap index when we hit the top partner of a swap
-    new_swap_idx = lax.select(is_swap_top, swap_idx+2, swap_idx)
-    new_replica_idx = replica_idx+1
-    return (new_replica_idx, new_swap_idx, swap_decisions), new_chain_idx
-
-# scan over replica indices to resolve swaps given proposals and decisions
-def resolve_replica_to_chain_idx(
-        replica_to_chain_idx,
-        proposed_replica_to_chain_idx,
-        is_odd_scan,
-        swap_decisions
-    ):
-    _, new_replica_to_chain_idx = lax.scan(
-        swap_scan_fn,
-        xs=(proposed_replica_to_chain_idx, replica_to_chain_idx),
-        init=(0, is_odd_scan, swap_decisions)
-    )
-    return new_replica_to_chain_idx
-
-# to determine the c2r map compatible with the new r2c map, use
-#   chain -> new_replica == chain -> old_replica -> new_chain -> old_replica
-# I.e., to get the new replica in charge of c, fetch the replica that was in 
-# charge of the new chain c' that the old replica in charge of c is in charge
-# of now.
+# core (deterministic) swap mechanism
 def resolve_chain_to_replica_idx(
-        old_chain_to_replica_idx, 
-        new_replica_to_chain_idx
+        is_odd_scan,
+        proto_accept_decisions,
+        old_chain_to_replica_idx,
+        swap_group_actions
     ):
-    return old_chain_to_replica_idx[
-        new_replica_to_chain_idx[old_chain_to_replica_idx]
+    # determine the maximal swap group action (i.e., in case all were accepted)
+    idx_group_action = swap_group_actions[is_odd_scan]
+    n_replicas = len(idx_group_action)
+    proposed_chain_to_replica_idx = old_chain_to_replica_idx[idx_group_action]
+
+    # determine the participating chains, and their status in the swap
+    is_in_swap = proposed_chain_to_replica_idx != old_chain_to_replica_idx
+    is_swap_bottom = (jnp.arange(n_replicas) + is_odd_scan + 1) % 2
+
+    # determine the actual swap decision
+    accept_decisions = jnp.logical_or(
+        jnp.logical_and(
+            jnp.logical_and(is_in_swap, is_swap_bottom),
+            # insert any value at the end to make it len == n_replicas
+            # harmless because the last chain is never swap bottom
+            jnp.insert(proto_accept_decisions, n_replicas, True)
+        ),
+        jnp.logical_and(
+            jnp.logical_and(is_in_swap, jnp.logical_not(is_swap_bottom)),
+            # insert any value at the beginning to make it len == n_replicas
+            # harmless because first chain is never in swap when not a bottom
+            jnp.insert(proto_accept_decisions, 0, True)
+        )
+    )
+    return lax.select(
+        accept_decisions, 
+        proposed_chain_to_replica_idx, 
+        old_chain_to_replica_idx
+    )
+
+# to determine the new r2c map compatible with the new c2r map, use
+#   replica -> new_chain == replica -> old_chain -> new_replica -> old_chain
+# I.e., to get the new chain owned by r, fetch the chain that was owned by 
+# the replica r' that now owns the chain previously held by r
+def resolve_replica_to_chain_idx(
+        old_replica_to_chain_idx, 
+        new_chain_to_replica_idx
+    ):
+    return old_replica_to_chain_idx[
+        new_chain_to_replica_idx[old_replica_to_chain_idx]
     ]
 
 # Communication step
@@ -109,7 +92,7 @@ def communication_step(pt_state, is_odd_scan, swap_group_actions):
     delta_LL = jnp.diff(chain_log_liks)
     neg_log_acc_ratio = delta_inv_temp * delta_LL # == -log(accept ratio)
     swap_reject_probs = -lax.expm1(-lax.max(0., neg_log_acc_ratio))
-    
+
     # sample swap decisions
     # note: these are length n_replicas-1, as the last replica can only by a
     # top in a swap---and therefore its decision is the same as the one for the
@@ -117,26 +100,21 @@ def communication_step(pt_state, is_odd_scan, swap_group_actions):
     n_replicas = len(inv_temp_schedule) 
     rng_key, exp_key = random.split(pt_state.rng_key)
     randexp_vars = random.exponential(exp_key, n_replicas-1)
-    swap_decisions = randexp_vars > neg_log_acc_ratio
+    proto_accept_decisions = randexp_vars > neg_log_acc_ratio
 
-    # determine the maximal swap group action (i.e., in case all were accepted)
-    idx_group_action = swap_group_actions[is_odd_scan]
-    proposed_replica_to_chain_idx = replica_to_chain_idx[idx_group_action]
-    
     # resolve index map updates
-    new_replica_to_chain_idx = resolve_replica_to_chain_idx(
-        replica_to_chain_idx,
-        proposed_replica_to_chain_idx,
-        is_odd_scan,
-        swap_decisions
-    )
     new_chain_to_replica_idx = resolve_chain_to_replica_idx(
-        chain_to_replica_idx, 
-        new_replica_to_chain_idx
+        is_odd_scan,
+        proto_accept_decisions,
+        chain_to_replica_idx,
+        swap_group_actions
     )
-
+    new_replica_to_chain_idx = resolve_replica_to_chain_idx(
+        replica_to_chain_idx, 
+        new_chain_to_replica_idx
+    )
+    
     # update state: prng key, chain-replica maps, and replica inv_temps
-    # jax.debug.print("{}\t{}",new_replica_to_chain_idx,new_chain_to_replica_idx,ordered=True)
     replica_states = replica_states._replace(
         # Replica -> new temp == Replica -> new chain -> temp
         inv_temp = inv_temp_schedule[new_replica_to_chain_idx]
@@ -148,5 +126,5 @@ def communication_step(pt_state, is_odd_scan, swap_group_actions):
         chain_to_replica_idx = new_chain_to_replica_idx
     )
 
-    return (pt_state, swap_reject_probs)
+    return (pt_state, swap_reject_probs, delta_inv_temp, chain_log_liks)
 

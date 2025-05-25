@@ -129,7 +129,7 @@ def init_pt_state(kernel, rng_key, n_replicas, model_args, model_kwargs):
     replica_states, replica_to_chain_idx, chain_to_replica_idx = init_schedule(
         replica_states, n_replicas
     )
-    stats = statistics.init_state(n_replicas)
+    stats = statistics.init_stats(n_replicas)
     return PTState(
         replica_states, 
         replica_to_chain_idx, 
