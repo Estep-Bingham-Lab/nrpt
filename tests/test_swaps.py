@@ -42,7 +42,9 @@ class TestSwaps(unittest.TestCase):
         
         # check 1 round gives even(odd(initial state))
         rng_key, run_key = random.split(rng_key)
-        pt_sampler = initialization.PT(kernel, run_key, n_rounds=1)
+        pt_sampler = initialization.PT(
+            kernel, run_key, n_rounds=1, collect_samples=False
+        )
         init_chain_to_replica_idx = pt_sampler.pt_state.chain_to_replica_idx
         pt_sampler = sampling.run(pt_sampler)
         pt_state = pt_sampler.pt_state
@@ -58,7 +60,9 @@ class TestSwaps(unittest.TestCase):
 
         # check `n_replicas` scans reverse the initial permutation
         rng_key, run_key = random.split(rng_key)
-        pt_sampler = initialization.PT(kernel, run_key, n_replicas=6, n_rounds=2)
+        pt_sampler = initialization.PT(
+            kernel, run_key, n_replicas=6, n_rounds=2, collect_samples=False
+        )
         init_chain_to_replica_idx = pt_sampler.pt_state.chain_to_replica_idx
         pt_sampler = sampling.run(pt_sampler) # 2 rounds == 2+4=6 scans ==> reverse init array
         pt_state = pt_sampler.pt_state
@@ -71,7 +75,9 @@ class TestSwaps(unittest.TestCase):
 
         # check 2*n_replicas scans return to the initial permutation
         rng_key, run_key = random.split(rng_key)
-        pt_sampler = initialization.PT(kernel, run_key, n_replicas=7, n_rounds=3)
+        pt_sampler = initialization.PT(
+            kernel, run_key, n_replicas=7, n_rounds=3, collect_samples=False
+        )
         init_chain_to_replica_idx = pt_sampler.pt_state.chain_to_replica_idx
         pt_sampler = sampling.run(pt_sampler) # 3 rounds == 2+4+8=14 scans ==> return to init array
         pt_state = pt_sampler.pt_state

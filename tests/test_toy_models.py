@@ -1,8 +1,10 @@
 import unittest
 
 from functools import partial
+
+import math
+
 import jax
-from jax import lax
 from jax import random
 from jax import numpy as jnp
 
@@ -18,28 +20,42 @@ class TestToyExamples(unittest.TestCase):
         rng_key = random.key(123)
 
         ## Unidentifiable
-        model, model_args, model_kwargs = toy_examples.toy_unid_example()
+        n_heads, n_flips = 50000,100000
+        model, model_args, model_kwargs = toy_examples.toy_unid_example(n_heads, n_flips)
+        true_barrier = 3.25 # long run
         kernel = autohmc.AutoMALA(model)
         pt_sampler = initialization.PT(
             kernel, 
             rng_key,
-            n_replicas=4,
-            model_args=model_args, 
+            n_replicas=math.ceil(2*true_barrier),
+            model_args=model_args,
             model_kwargs=model_kwargs
         )
         pt_sampler = sampling.run(pt_sampler)
         pt_state = pt_sampler.pt_state
+
+        # check logZ and barrier estimates
         inv_temp_schedule = pt_state.replica_states.inv_temp[
             pt_state.chain_to_replica_idx
         ]
-        true_logZs = jax.vmap(partial(toy_examples.toy_unid_exact_logZ, 100,50))(
-            inv_temp_schedule
-        )
+        vmapped_fn = partial(toy_examples.toy_unid_exact_logZ, n_flips, n_heads)
+        true_logZs = jax.vmap(vmapped_fn)(inv_temp_schedule)
         total_barrier = sampling.total_barrier(pt_state.stats.barrier_fit)
         self.assertTrue(
-            jnp.allclose(pt_state.stats.logZ_fit.y, true_logZs, atol=0.4)
+            jnp.allclose(pt_state.stats.logZ_fit.y, true_logZs, atol=0.1, rtol=0.1)
         )
-        self.assertTrue(jnp.isclose(total_barrier, 1.38, rtol=0.05)) # long Pigeons run
+        self.assertTrue(jnp.isclose(total_barrier, true_barrier, rtol=0.1))
+
+        # check samples
+        samples = pt_state.samples
+        total_samples = sampling.n_scans_in_round(pt_sampler.n_rounds)
+        self.assertTrue(
+            jax.tree.all(
+                jax.tree.map(lambda x: x.shape[0] == total_samples, samples)
+            )
+        )
+        self.assertTrue(jnp.all(samples['p'] == samples['p1']*samples['p2']))
+        self.assertTrue(jnp.allclose(0.5, samples['p'], rtol=0.1))
 
 
 if __name__ == '__main__':

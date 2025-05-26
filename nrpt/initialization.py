@@ -7,6 +7,7 @@ from jax import random
 
 from numpyro.util import is_prng_key
 
+from nrpt import sampling
 from nrpt import statistics
 
 ###############################################################################
@@ -45,7 +46,8 @@ PTState = namedtuple(
         "replica_to_chain_idx",
         "chain_to_replica_idx",
         "rng_key",
-        "stats"
+        "stats",
+        "samples"
     ],
 )
 """
@@ -57,6 +59,7 @@ ensemble. It consists of the fields:
  - **chain_to_replica_idx** - jhfg.
  - **rng_key** - jhfg.
  - **stats** - jhfg.
+ - **samples** - jhfg.
 """
 
 ###############################################################################
@@ -115,13 +118,48 @@ def init_replica_states(kernel, rng_key, n_replicas, model_args, model_kwargs):
     )
 
 def init_schedule(replica_states, n_replicas):
-    replica_to_chain_idx = jnp.arange(n_replicas)    # init to identity permutation
-    chain_to_replica_idx = jnp.arange(n_replicas)    # id = argsort(id)
+    chain_to_replica_idx = jnp.arange(n_replicas)    # init to identity permutation
+    replica_to_chain_idx = jnp.arange(n_replicas)    # id = argsort(id)
     inv_temp_schedule = jnp.linspace(0,1,n_replicas) # init to uniform grid
     replica_states = replica_states._replace(inv_temp=inv_temp_schedule)
     return replica_states, replica_to_chain_idx, chain_to_replica_idx
 
-def init_pt_state(kernel, rng_key, n_replicas, model_args, model_kwargs):
+def init_samples_container(
+        kernel, 
+        n_rounds, 
+        model_args, 
+        model_kwargs, 
+        replica_states
+    ):
+    # grab a generic replica state
+    constrained_sample_with_extras = sampling.extract_sample(
+        kernel, 
+        model_args, 
+        model_kwargs, 
+        replica_states, 
+        0,
+    )
+
+    # use the above as template to create container
+    n_stored_samples = sampling.n_scans_in_round(n_rounds)
+    return jax.tree.map(
+        lambda x: jnp.empty_like(
+            x, 
+            shape = (n_stored_samples, *x.shape),
+            # device = jax.devices('cpu')[0] # TODO: should we add option to do this?
+        ),
+        constrained_sample_with_extras
+    )
+
+def init_pt_state(
+        kernel, 
+        rng_key, 
+        n_replicas, 
+        n_rounds,
+        model_args, 
+        model_kwargs, 
+        collect_samples
+    ):
     rng_key, init_key = random.split(rng_key)
     replica_states = init_replica_states(
         kernel, init_key, n_replicas, model_args, model_kwargs
@@ -130,12 +168,24 @@ def init_pt_state(kernel, rng_key, n_replicas, model_args, model_kwargs):
         replica_states, n_replicas
     )
     stats = statistics.init_stats(n_replicas)
+    if collect_samples:
+        samples = init_samples_container(
+            kernel, 
+            n_rounds, 
+            model_args, 
+            model_kwargs,
+            replica_states
+        )
+    else: 
+        samples = None
+
     return PTState(
         replica_states, 
         replica_to_chain_idx, 
         chain_to_replica_idx, 
         rng_key, 
-        stats
+        stats,
+        samples
     )
 
 def PT(
@@ -145,11 +195,18 @@ def PT(
         n_rounds = 10, 
         n_refresh = 3, 
         model_args = (), 
-        model_kwargs = {}
+        model_kwargs = {},
+        collect_samples = True
     ):
     swap_group_actions = init_swap_group_actions(n_replicas)
     pt_state = init_pt_state(
-        kernel, rng_key, n_replicas, model_args, model_kwargs
+        kernel, 
+        rng_key, 
+        n_replicas, 
+        n_rounds,
+        model_args, 
+        model_kwargs, 
+        collect_samples
     )
     return PTSampler(
         kernel, 
