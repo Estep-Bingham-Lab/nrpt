@@ -1,8 +1,5 @@
 import unittest
 
-import numpy as np
-from scipy import interpolate
-
 import jax
 from jax import numpy as jnp
 from jax import random

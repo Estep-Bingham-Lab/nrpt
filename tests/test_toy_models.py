@@ -9,12 +9,8 @@ from jax import numpy as jnp
 from autostep import autohmc
 
 from nrpt import initialization
-from nrpt import exploration
 from nrpt import sampling
 from nrpt import toy_examples
-from nrpt import logZ
-
-from tests import utils as testutils
 
 class TestToyExamples(unittest.TestCase):
 
@@ -43,7 +39,7 @@ class TestToyExamples(unittest.TestCase):
         self.assertTrue(
             jnp.allclose(pt_state.stats.logZ_fit.y, true_logZs, atol=0.4)
         )
-        self.assertTrue(jnp.isclose(1.38, total_barrier, rtol=0.05))
+        self.assertTrue(jnp.isclose(total_barrier, 1.38, rtol=0.05)) # long Pigeons run
 
 
 if __name__ == '__main__':
