@@ -45,7 +45,7 @@ def init_stats(n_replicas):
         interpolation.empty_interpolator(n_replicas)
     )
 
-def end_of_scan_stats_update(
+def post_scan_stats_update(
         pt_state, 
         swap_reject_probs,
         delta_inv_temp, 

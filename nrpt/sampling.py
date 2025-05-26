@@ -3,6 +3,8 @@ from functools import partial
 import jax
 from jax import lax
 
+from numpyro import util
+
 from nrpt import adaptation
 from nrpt import exploration
 from nrpt import statistics
@@ -20,7 +22,58 @@ def total_barrier(barrier_fit):
 def logZ_at_target(logZ_fit):
     return logZ_fit.y[-1]
 
-def end_of_round_adaptation(kernel, pt_state):
+def extract_sample(
+        kernel, 
+        model_args, 
+        model_kwargs, 
+        replica_states, 
+        replica_idx,
+        extra_fields = ('log_lik', 'log_posterior', 'log_joint')
+    ):
+    # grab the state of the requested replica
+    target_replica_state = jax.tree.map(
+        lambda x: x[replica_idx], 
+        replica_states
+    )
+
+    # extract the kernel's sample field, then constrain the sample
+    unconstrained_sample = getattr(target_replica_state, kernel.sample_field)
+    constrained_sample = kernel.postprocess_fn(model_args, model_kwargs)(
+        unconstrained_sample
+    )
+
+    # add extra fields and return
+    constrained_sample_with_extras = constrained_sample
+    for f in extra_fields:
+        constrained_sample[f] = getattr(target_replica_state, f)
+    return constrained_sample_with_extras
+
+def store_sample(kernel, model_args, model_kwargs, pt_state):
+    constrained_sample_with_extras = extract_sample(
+        kernel, 
+        model_args, 
+        model_kwargs, 
+        pt_state.replica_states, 
+        pt_state.chain_to_replica_idx[-1] # get the state of the replica in charge of the target chain
+    )
+    scan_idx = pt_state.stats.scan_idx
+    samples = jax.tree.map(
+        lambda x,y: x.at[scan_idx-1].set(y), # NB: scan_idx is 1-based 
+        pt_state.samples, 
+        constrained_sample_with_extras
+    )
+    return pt_state._replace(samples = samples)
+
+def maybe_store_sample(kernel, model_args, model_kwargs, pt_state, n_rounds):
+    # skip if we are not yet at the last round
+    return lax.cond(
+        n_rounds == pt_state.stats.round_idx,
+        partial(store_sample, kernel, model_args, model_kwargs),
+        util.identity,
+        pt_state
+    )
+
+def postprocess_round(kernel, pt_state):
     ending_round_idx = pt_state.stats.round_idx
 
     # adapt explorers
@@ -49,6 +102,7 @@ def end_of_round_adaptation(kernel, pt_state):
 def pt_scan(
         kernel, 
         pt_state, 
+        n_rounds,
         n_refresh, 
         model_args, 
         model_kwargs,
@@ -63,10 +117,29 @@ def pt_scan(
         kernel, pt_state, n_refresh, model_args, model_kwargs
     )
 
-    # communication and then scan stats update 
+    # communication
     is_odd_scan = pt_state.stats.scan_idx % 2
-    pt_state = statistics.end_of_scan_stats_update(
-        *swaps.communication_step(pt_state, is_odd_scan, swap_group_actions)
+    (
+        pt_state, 
+        swap_reject_probs, 
+        delta_inv_temp, 
+        chain_log_liks
+    ) = swaps.communication_step(pt_state, is_odd_scan, swap_group_actions)
+
+    # store sample at target chain if requested
+    # no-op if this is not the last round
+    if pt_state.samples is not None:
+        pt_state = maybe_store_sample(
+            kernel, 
+            model_args, 
+            model_kwargs, 
+            pt_state, 
+            n_rounds
+        )
+    
+    # stats update (in particular iterators) 
+    pt_state = statistics.post_scan_stats_update(
+        pt_state, swap_reject_probs, delta_inv_temp, chain_log_liks
     )
 
     # if end of run, do adaptation
@@ -74,8 +147,8 @@ def pt_scan(
     # to get the index of the scan that just finished
     pt_state = lax.cond(
         pt_state.stats.scan_idx-1 == n_scans_in_round(pt_state.stats.round_idx),
-        partial(end_of_round_adaptation, kernel),
-        lambda s: s,
+        partial(postprocess_round, kernel),
+        util.identity,
         pt_state
     )
 
@@ -102,6 +175,7 @@ def run(pt_sampler):
             pt_scan(
                 kernel, 
                 pt_state, 
+                n_rounds,
                 n_refresh, 
                 model_args, 
                 model_kwargs,
