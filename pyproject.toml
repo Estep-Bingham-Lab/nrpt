@@ -1,7 +1,7 @@
 [project]
 name = "nrpt"
 version = "0.1.0"
-description = "A NumPyro implementation of Non-Reversible Parallel Tempering (NRPT)"
+description = "A JAX-based, NumPyro-compatible implementation of Non-Reversible Parallel Tempering (NRPT)"
 authors = [
     {name = "Miguel Biron-Lattes",email = "miguelbl9@gmail.com"}
 ]

@@ -3,7 +3,10 @@
 [![Build Status](https://github.com/Estep-Bingham-Lab/nrpt/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/Estep-Bingham-Lab/nrpt/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/Estep-Bingham-Lab/nrpt/branch/main/graph/badge.svg)](https://codecov.io/gh/Estep-Bingham-Lab/nrpt)
 
-***A NumPyro implementation of Non-Reversible Parallel Tempering (NRPT)***
+*A JAX-based, NumPyro-compatible implementation of Non-Reversible Parallel Tempering (NRPT)*
+
+**Warning:** `nrpt` is under active development.
+
 
 ## Installation
 
@@ -17,11 +20,15 @@ Using pip
 pip install nrpt @ git+https://github.com/Estep-Bingham-Lab/nrpt.git
 ```
 
+## References
+
+Syed, S., Bouchard-Côté, A., Deligiannidis, G., & Doucet, A. (2022). 
+[Non-reversible parallel tempering: a scalable highly parallel MCMC scheme](https://doi.org/10.1111/rssb.12464). 
+*Journal of the Royal Statistical Society Series B: Statistical Methodology*, 84(2), 321-350.
+
 ## TODO
 
-- Capture samples
-- loglik autocorrelation before v. after exploration
+- Loglik autocorrelation before v. after exploration
+- Prior i.i.d. sampling
 - Measure time elapsed in round 
-- README example with mRNA and pairplot
-- (perhaps related to the above) Rename the `PTStats` to `PTRecorders` and
-organize its entries into sub-recorders depending on their purpose.
+
