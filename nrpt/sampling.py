@@ -124,7 +124,9 @@ def pt_scan(
         swap_reject_probs, 
         delta_inv_temp, 
         chain_log_liks
-    ) = swaps.communication_step(pt_state, is_odd_scan, swap_group_actions)
+    ) = swaps.communication_step(
+        kernel, pt_state, is_odd_scan, swap_group_actions
+    )
 
     # store sample at target chain if requested
     # no-op if this is not the last round

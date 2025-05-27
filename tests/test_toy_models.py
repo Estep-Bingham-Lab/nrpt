@@ -14,6 +14,8 @@ from nrpt import initialization
 from nrpt import sampling
 from nrpt import toy_examples
 
+from tests import utils as testutils
+
 class TestToyExamples(unittest.TestCase):
 
     def test_toy_examples(self):
@@ -28,6 +30,7 @@ class TestToyExamples(unittest.TestCase):
             kernel, 
             rng_key,
             n_replicas=math.ceil(2*true_barrier),
+            n_rounds = 12,
             model_args=model_args,
             model_kwargs=model_kwargs
         )
@@ -45,6 +48,11 @@ class TestToyExamples(unittest.TestCase):
             jnp.allclose(pt_state.stats.logZ_fit.y, true_logZs, atol=0.1, rtol=0.1)
         )
         self.assertTrue(jnp.isclose(total_barrier, true_barrier, rtol=0.1))
+
+        # check base step size decreases with inv_temp
+        self.assertTrue(testutils.is_increasing(
+            -pt_state.replica_states.base_step_size[pt_state.chain_to_replica_idx]
+        ))
 
         # check samples
         samples = pt_state.samples

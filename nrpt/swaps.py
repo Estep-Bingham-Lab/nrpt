@@ -1,6 +1,11 @@
+from operator import itemgetter
+
+import jax
 from jax import numpy as jnp
 from jax import lax
 from jax import random
+
+from autostep import autostep
 
 # core (deterministic) swap mechanism
 def resolve_chain_to_replica_idx(
@@ -39,17 +44,42 @@ def resolve_chain_to_replica_idx(
         old_chain_to_replica_idx
     )
 
-# to determine the new r2c map compatible with the new c2r map, use
-#   replica -> new_chain == replica -> old_chain -> new_replica -> old_chain
-# I.e., to get the new chain owned by r, fetch the chain that was owned by 
-# the replica r' that now owns the chain previously held by r
-def resolve_replica_to_chain_idx(
-        old_replica_to_chain_idx, 
-        new_chain_to_replica_idx
-    ):
-    return old_replica_to_chain_idx[
-        new_chain_to_replica_idx[old_replica_to_chain_idx]
-    ]
+# resolve replica swap partners and update replica to chain map. 
+# use the identities
+#   replica -> new chain == replica -> swap partner => replica -> old chain
+#   replica -> swap partner == replica -> old chain => chain -> new_replica
+# notes about the swap partner permutation:
+#   - it is nilpotent ("the partner of my partner is me")
+#   - its fixed points are the replicas which didn't participate or
+#     whose swaps failed
+def resolve_replica_maps(old_replica_to_chain_idx, new_chain_to_replica_idx):
+    replica_swap_partner = new_chain_to_replica_idx[old_replica_to_chain_idx]
+    new_replica_to_chain_idx = old_replica_to_chain_idx[replica_swap_partner]
+    return replica_swap_partner, new_replica_to_chain_idx
+
+# swap replica states: need to exchange between replica swap partners the 
+# fields that are chain-specific. At the very least this includes inv_temp.
+# AutoStep kernels also have
+#   - stats
+#   - base_step_size
+#   - base_precond_state
+# use the identity
+#   Replica -> new chain val == Replica -> swap partner => Replica -> val
+def swap_replica_states(kernel, replica_states, replica_swap_partner):
+    new_inv_temp = replica_states.inv_temp[replica_swap_partner] # equivalent to inv_temp_schedule[new_replica_to_chain_idx]
+
+    if not isinstance(kernel, autostep.AutoStep):
+        return replica_states._replace(inv_temp = new_inv_temp)
+
+    gettr = itemgetter(replica_swap_partner)
+    return replica_states._replace(
+        stats = jax.tree.map(gettr, replica_states.stats),
+        base_step_size = replica_states.base_step_size[replica_swap_partner],
+        base_precond_state = jax.tree.map(
+            gettr, replica_states.base_precond_state
+        ),
+        inv_temp = new_inv_temp
+    )
 
 # Communication step
 #  
@@ -72,7 +102,7 @@ def resolve_replica_to_chain_idx(
 #   U < ratio <=> E := -logU = > -log(ratio) =: nlaccr
 # where E ~ Exp(1). Finally, the rejection probability can be computed as
 #   R = 1-A = 1-min{1,exp(-nlaccr)}=1-exp(-max{0,nlaccr})
-def communication_step(pt_state, is_odd_scan, swap_group_actions):
+def communication_step(kernel, pt_state, is_odd_scan, swap_group_actions):
     # compute swap probabilities
     # note: these contains all the swaps: [0<->1], [1<->2], [2<->3] => even the 
     # irrelevants for this scan. The reason is that it is faster to compute these
@@ -102,23 +132,25 @@ def communication_step(pt_state, is_odd_scan, swap_group_actions):
     randexp_vars = random.exponential(exp_key, n_replicas-1)
     proto_accept_decisions = randexp_vars > neg_log_acc_ratio
 
-    # resolve index map updates
+    # resolve chain to replica map
     new_chain_to_replica_idx = resolve_chain_to_replica_idx(
         is_odd_scan,
         proto_accept_decisions,
         chain_to_replica_idx,
         swap_group_actions
     )
-    new_replica_to_chain_idx = resolve_replica_to_chain_idx(
-        replica_to_chain_idx, 
-        new_chain_to_replica_idx
+
+    # resolve replica swap partners and new chains
+    replica_swap_partner, new_replica_to_chain_idx = resolve_replica_maps(
+        replica_to_chain_idx, new_chain_to_replica_idx
     )
     
-    # update state: prng key, chain-replica maps, and replica inv_temps
-    replica_states = replica_states._replace(
-        # Replica -> new temp == Replica -> new chain -> temp
-        inv_temp = inv_temp_schedule[new_replica_to_chain_idx]
+    # swap replica states
+    replica_states = swap_replica_states(
+        kernel, replica_states, replica_swap_partner
     )
+    
+    # update pt_state
     pt_state = pt_state._replace(
         rng_key = rng_key,
         replica_states = replica_states,
@@ -127,4 +159,5 @@ def communication_step(pt_state, is_odd_scan, swap_group_actions):
     )
 
     return (pt_state, swap_reject_probs, delta_inv_temp, chain_log_liks)
+
 
