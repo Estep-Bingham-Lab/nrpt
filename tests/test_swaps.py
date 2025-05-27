@@ -25,7 +25,7 @@ def replica_chain_maps_agree(replica_to_chain_idx, chain_to_replica_idx):
     )
 
 def chain_to_replica_map_sorts_inv_temps(inv_temps, chain_to_replica_idx):
-    return testutils.is_sorted(inv_temps[chain_to_replica_idx])
+    return testutils.is_increasing(inv_temps[chain_to_replica_idx])
 
 class TestSwaps(unittest.TestCase):
 
@@ -89,25 +89,47 @@ class TestSwaps(unittest.TestCase):
         ))
 
         #######################################################################
-        ## check resolvers with non-trivial swap decisions
+        ## check resolvers with non-trivial swap decisions, using only low
+        ## level functions and a random initial permutation
         #######################################################################
+
+        n_replicas = 10
+        id_perm = jnp.arange(n_replicas)
+        swap_group_actions = initialization.init_swap_group_actions(n_replicas)
+        rng_key, run_key = random.split(rng_key)
+        chain_to_replica_idx = random.permutation(run_key, jnp.arange(n_replicas))
+        replica_to_chain_idx = chain_to_replica_idx.argsort()
 
         for is_odd_scan in (0,1):
             rng_key, run_key = random.split(rng_key)
             proto_swap_decisions = random.bernoulli(
-                run_key,
-                shape=(pt_sampler.swap_group_actions.shape[1]-1,)
+                run_key, shape=(n_replicas-1,)
             )
             new_chain_to_replica_idx = swaps.resolve_chain_to_replica_idx(
                 is_odd_scan,
                 proto_swap_decisions,
-                pt_state.chain_to_replica_idx,
-                pt_sampler.swap_group_actions
+                chain_to_replica_idx,
+                swap_group_actions
             )
-            new_replica_to_chain_idx = swaps.resolve_replica_to_chain_idx(
-                pt_state.replica_to_chain_idx, 
-                new_chain_to_replica_idx
+            (
+                replica_swap_partner, 
+                new_replica_to_chain_idx
+            ) = swaps.resolve_replica_maps(
+                replica_to_chain_idx, new_chain_to_replica_idx
             )
+            # replica stays put if and only if it is a fixed point of 
+            # replica_swap_partner
+            self.assertTrue(jnp.all(
+                (new_replica_to_chain_idx == replica_to_chain_idx) ==
+                (replica_swap_partner == id_perm)
+            ))
+            # replica_swap_partner is nilpotent
+            self.assertTrue(
+                jnp.all(
+                    replica_swap_partner[replica_swap_partner] == id_perm
+                )
+            )
+            # maps agree
             self.assertTrue(
                 replica_chain_maps_agree(
                     new_replica_to_chain_idx, new_chain_to_replica_idx
