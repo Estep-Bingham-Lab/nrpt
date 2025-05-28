@@ -1,4 +1,5 @@
 from functools import partial
+from operator import itemgetter
 
 import jax
 from jax import lax
@@ -39,10 +40,7 @@ def extract_sample(
         extra_fields = ('log_lik', 'log_posterior', 'log_joint')
     ):
     # grab the state of the requested replica
-    target_replica_state = jax.tree.map(
-        lambda x: x[replica_idx], 
-        replica_states
-    )
+    target_replica_state = jax.tree.map(itemgetter(replica_idx), replica_states)
 
     # extract the kernel's sample field, then constrain the sample
     unconstrained_sample = getattr(target_replica_state, kernel.sample_field)
@@ -83,7 +81,7 @@ def maybe_store_sample(kernel, model_args, model_kwargs, pt_state, n_rounds):
 
 def print_summary_header():
     jax.debug.print(
-        " Round | Λ     | logZ      | ρ (mean/max) | α (min/mean) \n" \
+        " Round |     Λ |      logZ | ρ (mean/max) | α (min/mean) \n" \
         "---------------------------------------------------------",
         ordered=True
     )
@@ -95,7 +93,7 @@ def print_round_summary(ending_round_idx, explorer_mean_acc_prob, pt_state):
 
     # print row 
     jax.debug.print(
-        " {i}       {b:.1f}     {lZ: .2e}    {rm:.1f}/{rM:.1f}      {am:.1f}/{aM:.1f}",
+        " {i:>5}     {b:.1f}   {lZ: .2e}        {rm:.1f}/{rM:.1f}        {am:.1f}/{aM:.1f}",
         ordered=True,
         i=ending_round_idx,
         b=total_barrier(pt_state.stats.barrier_fit),
