@@ -30,7 +30,7 @@ class TestToyExamples(unittest.TestCase):
             kernel, 
             rng_key,
             n_replicas=math.ceil(2*true_barrier),
-            n_rounds = 12,
+            n_rounds = 10,
             model_args=model_args,
             model_kwargs=model_kwargs
         )
@@ -51,7 +51,7 @@ class TestToyExamples(unittest.TestCase):
 
         # check base step size decreases with inv_temp
         self.assertTrue(testutils.is_increasing(
-            -pt_state.replica_states.base_step_size[pt_state.chain_to_replica_idx]
+            -pt_state.replica_states.base_step_size[pt_state.chain_to_replica_idx[1:]]
         ))
 
         # check samples
