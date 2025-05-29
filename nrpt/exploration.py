@@ -7,6 +7,8 @@ from jax import numpy as jnp
 from numpyro.handlers import seed, trace
 from numpyro.infer import util
 
+from autostep import autostep
+
 # sample from prior using NumPyro handlers
 def sample_from_prior(model, model_args, model_kwargs, rng_key):
     traced_model = trace(seed(model, rng_seed=rng_key))
@@ -25,6 +27,9 @@ def sample_iid_kernel_state(
         model_kwargs, 
         kernel_state
     ):
+    if not isinstance(kernel, autostep.AutoStep):
+        return kernel_state
+
     # sample from the prior in unconstraiend space
     new_rng_key, iid_key = jax.random.split(kernel_state.rng_key)
     unconstrained_sample = sample_from_prior(
