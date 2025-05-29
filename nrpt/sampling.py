@@ -1,9 +1,13 @@
 from functools import partial
+from operator import itemgetter
 
 import jax
 from jax import lax
+from jax import numpy as jnp
 
 from numpyro import util
+
+from autostep import autostep
 
 from nrpt import adaptation
 from nrpt import exploration
@@ -15,6 +19,13 @@ def n_scans_in_round(round_idx):
 
 def total_scans(n_rounds):
     return 2 ** (n_rounds+1) - 2
+
+def get_explorer_mean_acc_prob(kernel, pt_state):
+    if not isinstance(kernel, autostep.AutoStep):
+        return jnp.array([1.])
+    # sort by chain and exclude the first (no exploration, only iid sampling)
+    replica_acc_probs = pt_state.replica_states.stats.adapt_stats.mean_acc_prob
+    return replica_acc_probs[pt_state.chain_to_replica_idx[1:]]
 
 def total_barrier(barrier_fit):
     return barrier_fit.y[-1]
@@ -31,10 +42,7 @@ def extract_sample(
         extra_fields = ('log_lik', 'log_posterior', 'log_joint')
     ):
     # grab the state of the requested replica
-    target_replica_state = jax.tree.map(
-        lambda x: x[replica_idx], 
-        replica_states
-    )
+    target_replica_state = jax.tree.map(itemgetter(replica_idx), replica_states)
 
     # extract the kernel's sample field, then constrain the sample
     unconstrained_sample = getattr(target_replica_state, kernel.sample_field)
@@ -73,10 +81,37 @@ def maybe_store_sample(kernel, model_args, model_kwargs, pt_state, n_rounds):
         pt_state
     )
 
+def print_summary_header():
+    jax.debug.print(
+        " Round |     Λ |      logZ | ρ (mean/max) | α (min/mean) \n" \
+        "---------------------------------------------------------",
+        ordered=True
+    )
+    return
+
+def print_round_summary(ending_round_idx, explorer_mean_acc_prob, pt_state):
+    # print a header in first round
+    lax.cond(ending_round_idx == 1, print_summary_header, lambda: None)
+
+    # print row 
+    jax.debug.print(
+        " {i:>5}     {b:.1f}   {lZ: .2e}        {rm:.1f}/{rM:.1f}        {am:.1f}/{aM:.1f}",
+        ordered=True,
+        i=ending_round_idx,
+        b=total_barrier(pt_state.stats.barrier_fit),
+        lZ=logZ_at_target(pt_state.stats.logZ_fit),
+        rm=pt_state.stats.last_round_rej_probs.mean(),
+        rM=pt_state.stats.last_round_rej_probs.max(),
+        am=explorer_mean_acc_prob.min(),
+        aM=explorer_mean_acc_prob.mean()
+    )
+
 def postprocess_round(kernel, pt_state):
     ending_round_idx = pt_state.stats.round_idx
 
     # adapt explorers
+    # capture acc probs before they are deleted
+    explorer_mean_acc_prob = get_explorer_mean_acc_prob(kernel, pt_state)
     pt_state = adaptation.adapt_explorers(kernel, pt_state)
     
     # adapt schedule
@@ -86,16 +121,7 @@ def postprocess_round(kernel, pt_state):
     pt_state = statistics.end_of_round_stats_update(pt_state, barrier_fit)
 
     # print info
-    # TODO: print a header before the fist call to this (in `run`?)
-    jax.debug.print(
-        "Round {i} \t Λ = {b:.2f} \t logZ = {lZ: .2f} \t RejProbs (mean/max) = {rm:.1f}/{rM:.1f}",
-        ordered=True,
-        i=ending_round_idx,
-        b=total_barrier(barrier_fit),
-        lZ=logZ_at_target(pt_state.stats.logZ_fit),
-        rm=pt_state.stats.last_round_rej_probs.mean(),
-        rM=pt_state.stats.last_round_rej_probs.max()
-    )
+    print_round_summary(ending_round_idx, explorer_mean_acc_prob, pt_state)
 
     return pt_state
 
