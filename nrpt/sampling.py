@@ -23,7 +23,9 @@ def total_scans(n_rounds):
 def get_explorer_mean_acc_prob(kernel, pt_state):
     if not isinstance(kernel, autostep.AutoStep):
         return jnp.array([1.])
-    return pt_state.replica_states.stats.adapt_stats.mean_acc_prob
+    # sort by chain and exclude the first (no exploration, only iid sampling)
+    replica_acc_probs = pt_state.replica_states.stats.adapt_stats.mean_acc_prob
+    return replica_acc_probs[pt_state.chain_to_replica_idx[1:]]
 
 def total_barrier(barrier_fit):
     return barrier_fit.y[-1]
