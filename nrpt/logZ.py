@@ -3,7 +3,8 @@ from jax import numpy as jnp
 
 from nrpt import interpolation
 
-# TODO: logZ
+# Online logZ(b) estimation
+#
 # For b \neq b',
 #   Z(b') = E_0[L(x)^b'] = E_0[exp(b'*l(x))]
 #    = E_0[exp(b*l(x))exp((b'-b)*l(x))]
