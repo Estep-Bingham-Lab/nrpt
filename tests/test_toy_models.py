@@ -32,7 +32,7 @@ class TestToyExamples(unittest.TestCase):
             kernel, 
             rng_key,
             n_replicas=math.ceil(2*true_barrier),
-            n_rounds = 10,
+            n_rounds = 11,
             model_args=model_args,
             model_kwargs=model_kwargs
         )
