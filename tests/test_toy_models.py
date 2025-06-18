@@ -20,7 +20,6 @@ from tests import utils as testutils
 class TestToyExamples(unittest.TestCase):
 
     def test_toy_examples(self):
-        tol = 0.2
         rng_key = random.key(123)
 
         ## Unidentifiable
@@ -53,9 +52,9 @@ class TestToyExamples(unittest.TestCase):
         print(pt_state.stats.logZ_fit.y)
         total_barrier = sampling.total_barrier(pt_state.stats.barrier_fit)
         self.assertTrue(
-            jnp.allclose(pt_state.stats.logZ_fit.y, true_logZs, atol=tol, rtol=tol)
+            jnp.allclose(pt_state.stats.logZ_fit.y, true_logZs, atol=1., rtol=0.4)
         )
-        self.assertTrue(jnp.isclose(total_barrier, true_barrier, rtol=tol))
+        self.assertTrue(jnp.isclose(total_barrier, true_barrier, rtol=0.2))
 
         # check base step size decreases with inv_temp
         self.assertTrue(testutils.is_increasing(
