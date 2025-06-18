@@ -12,8 +12,9 @@
 
 **Optional**: if you want to run your NumPyro models on an accelerator (GPU/TPU),
 make sure to 
-[install the correct version of JAX](https://jax.readthedocs.io/en/latest/installation.html).
-Otherwise, the following will install the default, CPU-only version of JAX.
+[install the correct version of JAX](https://jax.readthedocs.io/en/latest/installation.html)
+before proceeding. Otherwise, the following will install the default, CPU-only 
+version of JAX.
 
 Using pip
 ```bash
@@ -31,11 +32,15 @@ The objective is to estimate the parameters of an Ordinary Differential Equation
 (ODE) given noisy observations of its solution. The ODE itself was described in 
 [Leonhardt et al. 2014](https://doi.org/10.1016/j.nano.2013.11.008), while the
 Bayesian formulation of the inference problem is from 
-[Ballnus et al. 2017](https://doi.org/10.1186/s12918-017-0433-1). For brevity,
-we won't go into the details of the model here; be sure to check the references
-if you are curious. We also assume that you are familiar with NRPT. Beyond
-the [original paper](https://doi.org/10.1111/rssb.12464), a good reference 
-is the documentation of the Julia package 
+[Ballnus et al. 2017](https://doi.org/10.1186/s12918-017-0433-1). The latter
+shows an empirical comparison of several MCMC samplers on the ODE problem,
+indicating that schemes that used Parallel Tempering were the only ones able
+to accurately describe the posterior distribution.  
+
+For brevity, we won't go into the details of the model here; be sure to check 
+the references if you are curious. We also assume that you are familiar with 
+NRPT. Beyond the [original paper](https://doi.org/10.1111/rssb.12464), a good 
+reference is the documentation of the Julia package 
 [Pigeons.jl](https://pigeons.run/stable/); `nrpt` is heavily inspired by it.
 
 We will aim to reproduce Figure 6 in 
@@ -74,7 +79,7 @@ AutoRWMH (auto random-walk Metropolis-Hastings) sampler.
 kernel = autorwmh.AutoRWMH(model)
 ```
 
-With the explorer in place, we can proceed to instantiate a `PT` object
+With the explorer in place, we can proceed to instantiate a `PTSampler` object
 ```python
 pt_sampler = initialization.PT(
     kernel, 
@@ -185,11 +190,11 @@ Syed, S., Bouchard-Côté, A., Deligiannidis, G., & Doucet, A. (2022).
 *Journal of the Royal Statistical Society Series B: Statistical Methodology*, 84(2), 321-350.
 
 Liu, T., Surjanovic, N., Biron-Lattes, M., Bouchard-Côté, A., & Campbell, T. (2024).
-AutoStep: Locally adaptive involutive MCMC. *arXiv preprint arXiv:2410.18929*.
-Accepted to ICML 2025.
+[AutoStep: Locally adaptive involutive MCMC](https://arxiv.org/abs/2410.18929). 
+*arXiv preprint arXiv:2410.18929*. Accepted to ICML 2025.
 
 
 ## TODO
 
 - Measure time elapsed in round 
-
+- Documentation
