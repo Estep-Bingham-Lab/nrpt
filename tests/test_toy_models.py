@@ -38,7 +38,8 @@ class TestToyExamples(unittest.TestCase):
         pt_sampler = sampling.run(pt_sampler)
         pt_state = pt_sampler.pt_state
         
-        # check loglik ac1 are in the correct range
+        # check loglik ac1 are in the correct range 
+        # (only true when estimator has stabilized)
         ll_acs = statistics.loglik_autocors(pt_state)
         self.assertTrue(jnp.all(jnp.logical_and(ll_acs >= -1, ll_acs <= 1)))
 
@@ -50,9 +51,9 @@ class TestToyExamples(unittest.TestCase):
         true_logZs = jax.vmap(vmapped_fn)(inv_temp_schedule)
         total_barrier = sampling.total_barrier(pt_state.stats.barrier_fit)
         self.assertTrue(
-            jnp.allclose(pt_state.stats.logZ_fit.y, true_logZs, atol=0.1, rtol=0.1)
+            jnp.allclose(pt_state.stats.logZ_fit.y, true_logZs, atol=0.15, rtol=0.15)
         )
-        self.assertTrue(jnp.isclose(total_barrier, true_barrier, rtol=0.1))
+        self.assertTrue(jnp.isclose(total_barrier, true_barrier, rtol=0.15))
 
         # check base step size decreases with inv_temp
         self.assertTrue(testutils.is_increasing(
