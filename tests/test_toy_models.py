@@ -32,7 +32,6 @@ class TestToyExamples(unittest.TestCase):
             kernel, 
             rng_key,
             n_replicas=math.ceil(2*true_barrier),
-            n_rounds = 11,
             model_args=model_args,
             model_kwargs=model_kwargs
         )
@@ -50,6 +49,8 @@ class TestToyExamples(unittest.TestCase):
         ]
         vmapped_fn = partial(toy_examples.toy_unid_exact_logZ, n_flips, n_heads)
         true_logZs = jax.vmap(vmapped_fn)(inv_temp_schedule)
+        print(true_logZs)
+        print(pt_state.stats.logZ_fit.y)
         total_barrier = sampling.total_barrier(pt_state.stats.barrier_fit)
         self.assertTrue(
             jnp.allclose(pt_state.stats.logZ_fit.y, true_logZs, atol=tol, rtol=tol)
