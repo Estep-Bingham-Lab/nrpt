@@ -12,6 +12,7 @@ from autostep import autohmc
 
 from nrpt import initialization
 from nrpt import sampling
+from nrpt import statistics
 from nrpt import toy_examples
 
 from tests import utils as testutils
@@ -36,6 +37,10 @@ class TestToyExamples(unittest.TestCase):
         )
         pt_sampler = sampling.run(pt_sampler)
         pt_state = pt_sampler.pt_state
+        
+        # check loglik ac1 are in the correct range
+        ll_acs = statistics.loglik_autocors(pt_state)
+        self.assertTrue(jnp.all(jnp.logical_and(ll_acs >= -1, ll_acs <= 1)))
 
         # check logZ and barrier estimates
         inv_temp_schedule = pt_state.replica_states.inv_temp[

@@ -83,8 +83,8 @@ def maybe_store_sample(kernel, model_args, model_kwargs, pt_state, n_rounds):
 
 def print_summary_header():
     jax.debug.print(
-        " Round |     Λ |      logZ | ρ (mean/max) | α (min/mean) \n" \
-        "---------------------------------------------------------",
+        " Round |     Λ |      logZ | ρ (mean/max) | α (min/mean) | llAC (mean/max) \n" \
+        "---------------------------------------------------------------------------",
         ordered=True
     )
     return
@@ -93,9 +93,10 @@ def print_round_summary(ending_round_idx, explorer_mean_acc_prob, pt_state):
     # print a header in first round
     lax.cond(ending_round_idx == 1, print_summary_header, lambda: None)
 
-    # print row 
+    # print row
+    ll_ac1s = statistics.loglik_autocors(pt_state) 
     jax.debug.print(
-        " {i:>5}     {b:.1f}   {lZ: .2e}        {rm:.1f}/{rM:.1f}        {am:.1f}/{aM:.1f}",
+        " {i:>5}     {b:.1f}   {lZ: .2e}        {rm:.1f}/{rM:.1f}        {am:.1f}/{aM:.1f}      {cm: .2f} /{cM: .2f}",
         ordered=True,
         i=ending_round_idx,
         b=total_barrier(pt_state.stats.barrier_fit),
@@ -103,7 +104,9 @@ def print_round_summary(ending_round_idx, explorer_mean_acc_prob, pt_state):
         rm=pt_state.stats.last_round_rej_probs.mean(),
         rM=pt_state.stats.last_round_rej_probs.max(),
         am=explorer_mean_acc_prob.min(),
-        aM=explorer_mean_acc_prob.mean()
+        aM=explorer_mean_acc_prob.mean(),
+        cm=ll_ac1s.mean(),
+        cM=ll_ac1s.max()
     )
 
 def postprocess_round(kernel, pt_state):
@@ -138,6 +141,11 @@ def pt_scan(
     Run a full NRPT scan -- exploration + DEO communication -- and collect
     statistics. If it is the last scan in a round, perform adaptation.
     """
+    # capture logliks before exploration to estimate autocorrelation
+    pre_explore_chain_log_liks = pt_state.replica_states.log_lik[
+        pt_state.chain_to_replica_idx
+    ]
+
     # exploration
     pt_state = exploration.exploration_step(
         kernel, pt_state, n_refresh, model_args, model_kwargs
@@ -167,7 +175,11 @@ def pt_scan(
     
     # stats update (in particular iterators) 
     pt_state = statistics.post_scan_stats_update(
-        pt_state, swap_reject_probs, delta_inv_temp, chain_log_liks
+        pt_state, 
+        swap_reject_probs, 
+        delta_inv_temp, 
+        chain_log_liks,
+        pre_explore_chain_log_liks
     )
 
     # if end of run, do adaptation
