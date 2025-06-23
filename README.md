@@ -76,14 +76,22 @@ Currently, `nrpt` only works with the MCMC samplers of the
 automatically installed along `nrpt`. For this example, we will use the
 AutoRWMH (auto random-walk Metropolis-Hastings) sampler.
 ```python
-kernel = autorwmh.AutoRWMH(model)
+kernel = autorwmh.AutoRWMH(model, n_iter_opt_init_params=16384)
 ```
+The additional argument is requesting an initial optimization phase where the
+starting point of the Markov chain is chosen to be close to the mode of the
+posterior -- i.e., close to the maximum *a posteriori* (MAP). For complicated
+distributions such as the present one, choosing a starting point close to the
+high probability region can lead to a massive improvement in the performance 
+of NRPT. Specifically, `autostep` runs `n_iter_opt_init_params` iterations of
+the ADAM gradient descent algorithm (provided by 
+[`optax`](https://optax.readthedocs.io/en/latest/)) to improve the starting point.
 
 With the explorer in place, we can proceed to instantiate a `PTSampler` object
 ```python
 pt_sampler = initialization.PT(
     kernel, 
-    rng_key = random.key(1),
+    rng_key = random.key(123),
     n_rounds = 14,
     n_replicas = 15,
     n_refresh = 32,
@@ -103,7 +111,18 @@ barrier of the problem.
 This allows us to achieve a worse-case autocorrelation of the log-likelihood 
 (across replicas) of less than 0.95.
 
-Finally, we can run the process using
+After executing the above, we see the output
+```
+Running 16384 ADAM iterations to improve initial state.
+Initial tempered potential: 3.6e+07
+Final tempered potential: 3.6e+02
+```
+In this context, tempered potential simply corresponds to the negative log
+posterior density. Note that the optimization phase reduced the potential
+by 5 orders of magnitude. This usually leads to NRPT behaving qualitatively
+better.
+
+Now we are in place to run NRPT, which we do via
 ```python
 start_time = time.time()
 pt_sampler = sampling.run(pt_sampler)
@@ -113,37 +132,39 @@ The above will produce an output similar to this
 ```
  Round |     Λ |      logZ | ρ (mean/max) | α (min/mean) | llAC (mean/max) 
 ---------------------------------------------------------------------------
-     1     3.5   -8.60e+02        0.2/1.0        0.4/0.7       0.62 / 8.45
-     2     4.6   -8.35e+02        0.3/0.9        0.5/0.7       0.73 / 2.01
-     3     5.9   -7.43e+02        0.4/0.8        0.3/0.5       0.80 / 1.44
-     4     6.0   -6.51e+02        0.4/0.8        0.3/0.4       0.75 / 0.96
-     5     7.8   -5.52e+02        0.6/0.9        0.3/0.4       0.69 / 1.00
-     6     7.6   -5.33e+02        0.5/1.0        0.3/0.4       0.68 / 1.00
-     7     7.9   -5.09e+02        0.6/0.9        0.4/0.5       0.74 / 1.00
-     8     7.1   -4.37e+02        0.5/0.7        0.3/0.4       0.76 / 1.00
-     9     6.3   -3.79e+02        0.5/0.9        0.3/0.4       0.71 / 0.98
-    10     6.0   -3.70e+02        0.4/0.6        0.3/0.4       0.64 / 0.92
-    11     6.0   -3.69e+02        0.4/0.6        0.4/0.5       0.61 / 0.95
+     1     2.4   -3.70e+02        0.2/1.0        0.0/0.2       nan / nan
+     2     4.3   -1.15e+04        0.3/1.0        0.4/0.5       0.74 / 1.42
+     3     4.9   -3.59e+02        0.3/0.8        0.3/0.5       0.43 / 1.11
+     4     5.2   -3.67e+02        0.4/0.8        0.3/0.4       0.39 / 1.02
+     5     6.0   -3.72e+02        0.4/0.7        0.3/0.4       0.46 / 0.88
+     6     6.2   -3.71e+02        0.4/0.6        0.3/0.4       0.57 / 0.92
+     7     6.2   -3.68e+02        0.4/0.7        0.3/0.4       0.54 / 0.91
+     8     5.9   -3.69e+02        0.4/0.6        0.3/0.4       0.60 / 0.92
+     9     6.1   -3.70e+02        0.4/0.6        0.3/0.4       0.62 / 0.94
+    10     6.0   -3.70e+02        0.4/0.5        0.4/0.4       0.61 / 0.94
+    11     6.1   -3.71e+02        0.4/0.5        0.4/0.4       0.61 / 0.94
     12     6.2   -3.71e+02        0.4/0.5        0.4/0.4       0.63 / 0.94
-    13     6.2   -3.71e+02        0.4/0.5        0.3/0.4       0.62 / 0.93
-    14     6.2   -3.71e+02        0.4/0.5        0.4/0.4       0.62 / 0.93
---- 776.9151175022125 seconds ---
+    13     6.2   -3.70e+02        0.4/0.5        0.4/0.4       0.62 / 0.93
+    14     6.1   -3.70e+02        0.4/0.5        0.4/0.4       0.62 / 0.94
+--- 439.52830624580383 seconds ---
 ```
 The figures shown here correspond to
 
 - Estimates of the global barrier, which at the last round is 
-$\Lambda \approx 6.2$. 
+$\Lambda \approx 6.1$. 
 - Estimates of the log-normalization constant, which in the last round gives
-$\log(\mathcal{Z})\approx -371$.
+$\log(\mathcal{Z})\approx -370$.
 - Average and worst-case swap rejection probabilities. When the average is
-close to the maximum -- as in the last rounds -- the ideal *equi-rejection*
+close to the maximum -- as in the last 5 rounds -- the ideal *equi-rejection*
 condition has been approximately attained.
 - Average and worst-case explorer acceptance probabilities. If the explorer is
 working correctly along the path of distributions, we expect both values
 to be away from 0 and 1.
 - Average and worst-case autocorrelation of the log-likelihood before and 
 after the exploration steps. As described above, the number of refreshments
-was set so that the maximum was below 0.95.
+was set so that the maximum was below 0.95. **Note**: the estimator does not
+behave well in small samples, which is why we can see autocorrelation values
+larger than one.
 
 We can now extract the samples and create the corner plot using
 ```python
