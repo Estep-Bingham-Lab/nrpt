@@ -35,8 +35,12 @@ Bayesian formulation of the inference problem is from
 [Ballnus et al. 2017](https://doi.org/10.1186/s12918-017-0433-1). The latter
 shows an empirical comparison of several MCMC samplers on the ODE problem,
 indicating that schemes that used Parallel Tempering were the only ones able
-to accurately describe the posterior distribution.  
+to accurately describe the posterior distribution. Indeed, its density is 
+bimodal and features narrow ridges.
 
+Here we will show that `nrpt` can leverage a simple yet fast gradient-free 
+sampler---autoRWMH, described in 
+[Liu et al. (2025)](https://arxiv.org/abs/2410.18929)---to tackle this inference task.
 For brevity, we won't go into the details of the model here; be sure to check 
 the references if you are curious. We also assume that you are familiar with 
 NRPT. Beyond the [original paper](https://doi.org/10.1111/rssb.12464), a good 
@@ -46,7 +50,8 @@ reference is the documentation of the Julia package
 We will aim to reproduce Figure 6 in 
 [Ballnus et al. 2017](https://doi.org/10.1186/s12918-017-0433-1), which shows
 a corner plot of the posterior samples of the unknown parameters of the ODE.
-The model has been written in NumPyro and included in `nrpt`. We can load it along all the required dependencies using
+The model has been written in NumPyro and included in `nrpt`. 
+We can load it along all the required dependencies using
 ```python
 from jax import random
 from jax import numpy as jnp
@@ -76,16 +81,19 @@ Currently, `nrpt` only works with the MCMC samplers of the
 automatically installed along `nrpt`. For this example, we will use the
 AutoRWMH (auto random-walk Metropolis-Hastings) sampler.
 ```python
-kernel = autorwmh.AutoRWMH(model, n_iter_opt_init_params=16384)
+kernel = autorwmh.AutoRWMH(
+    model, 
+    initialization_settings={'strategy': "L-BFGS", 'params': {'n_iter': 128}}
+)
 ```
 The additional argument is requesting an initial optimization phase where the
 starting point of the Markov chain is chosen to be close to the mode of the
 posterior -- i.e., close to the maximum *a posteriori* (MAP). For complicated
-distributions such as the present one, choosing a starting point close to the
-high probability region can lead to a massive improvement in the performance 
-of NRPT. Specifically, `autostep` runs `n_iter_opt_init_params` iterations of
-the ADAM gradient descent algorithm (provided by 
-[`optax`](https://optax.readthedocs.io/en/latest/)) to improve the starting point.
+distributions such as the present one, gradient-free samplers can take a long
+time to find the bulk of the mass. Thus, they can benefit from an optimized
+initialization. Specifically, we request `128` iterations of the L-BFGS 
+optimization algorithm---provided by 
+[`optax`](https://optax.readthedocs.io/en/latest/))---to improve the starting point.
 
 With the explorer in place, we can proceed to instantiate a `PTSampler` object
 ```python
@@ -113,9 +121,9 @@ This allows us to achieve a worse-case autocorrelation of the log-likelihood
 
 After executing the above, we see the output
 ```
-Running 16384 ADAM iterations to improve initial state.
-Initial tempered potential: 3.6e+07
-Final tempered potential: 3.6e+02
+Using L-BFGS to improve initial state.
+Initial energy: 3.6e+07
+Final energy: 3.5e+02
 ```
 In this context, tempered potential simply corresponds to the negative log
 posterior density. Note that the optimization phase reduced the potential
@@ -132,26 +140,26 @@ The above will produce an output similar to this
 ```
  Round |     Λ |      logZ | ρ (mean/max) | α (min/mean) | llAC (mean/max) 
 ---------------------------------------------------------------------------
-     1     2.4   -3.70e+02        0.2/1.0        0.0/0.2       nan / nan
-     2     4.3   -1.15e+04        0.3/1.0        0.4/0.5       0.74 / 1.42
-     3     4.9   -3.59e+02        0.3/0.8        0.3/0.5       0.43 / 1.11
-     4     5.2   -3.67e+02        0.4/0.8        0.3/0.4       0.39 / 1.02
-     5     6.0   -3.72e+02        0.4/0.7        0.3/0.4       0.46 / 0.88
-     6     6.2   -3.71e+02        0.4/0.6        0.3/0.4       0.57 / 0.92
-     7     6.2   -3.68e+02        0.4/0.7        0.3/0.4       0.54 / 0.91
-     8     5.9   -3.69e+02        0.4/0.6        0.3/0.4       0.60 / 0.92
-     9     6.1   -3.70e+02        0.4/0.6        0.3/0.4       0.62 / 0.94
-    10     6.0   -3.70e+02        0.4/0.5        0.4/0.4       0.61 / 0.94
-    11     6.1   -3.71e+02        0.4/0.5        0.4/0.4       0.61 / 0.94
-    12     6.2   -3.71e+02        0.4/0.5        0.4/0.4       0.63 / 0.94
-    13     6.2   -3.70e+02        0.4/0.5        0.4/0.4       0.62 / 0.93
-    14     6.1   -3.70e+02        0.4/0.5        0.4/0.4       0.62 / 0.94
---- 439.52830624580383 seconds ---
+     1     1.0   -3.63e+02    0.07 / 1.00    0.00 / 0.00       nan / nan
+     2     3.7   -4.89e+02    0.27 / 1.00    0.21 / 0.46       0.07 / 1.17
+     3     5.1   -3.64e+02    0.36 / 0.79    0.28 / 0.43      -0.08 / 0.96
+     4     5.9   -4.04e+02    0.42 / 1.00    0.31 / 0.35       0.43 / 0.94
+     5     6.5   -3.82e+02    0.46 / 0.72    0.32 / 0.36       0.57 / 0.98
+     6     5.9   -3.70e+02    0.42 / 0.79    0.30 / 0.37       0.54 / 0.96
+     7     6.1   -3.70e+02    0.43 / 0.80    0.34 / 0.45       0.57 / 0.91
+     8     6.2   -3.69e+02    0.44 / 0.59    0.32 / 0.40       0.61 / 0.94
+     9     6.2   -3.70e+02    0.44 / 0.62    0.33 / 0.41       0.58 / 0.93
+    10     6.1   -3.72e+02    0.44 / 0.66    0.35 / 0.42       0.62 / 0.94
+    11     6.0   -3.70e+02    0.43 / 0.52    0.35 / 0.41       0.60 / 0.93
+    12     6.1   -3.70e+02    0.44 / 0.48    0.37 / 0.42       0.61 / 0.93
+    13     6.1   -3.70e+02    0.44 / 0.46    0.38 / 0.42       0.61 / 0.93
+    14     6.2   -3.70e+02    0.44 / 0.48    0.36 / 0.41       0.62 / 0.93
+--- 439.30020546913147 seconds ---
 ```
 The figures shown here correspond to
 
 - Estimates of the global barrier, which at the last round is 
-$\Lambda \approx 6.1$. 
+$\Lambda \approx 6.2$. 
 - Estimates of the log-normalization constant, which in the last round gives
 $\log(\mathcal{Z})\approx -370$.
 - Average and worst-case swap rejection probabilities. When the average is
@@ -164,7 +172,7 @@ to be away from 0 and 1.
 after the exploration steps. As described above, the number of refreshments
 was set so that the maximum was below 0.95. **Note**: the estimator does not
 behave well in small samples, which is why we can see autocorrelation values
-larger than one.
+larger than one in earlier rounds.
 
 We can now extract the samples and create the corner plot using
 ```python

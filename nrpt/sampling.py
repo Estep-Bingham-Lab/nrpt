@@ -96,7 +96,7 @@ def print_round_summary(ending_round_idx, explorer_mean_acc_prob, pt_state):
     # print row
     ll_ac1s = statistics.loglik_autocors(pt_state) 
     jax.debug.print(
-        " {i:>5}     {b:.1f}   {lZ: .2e}        {rm:.1f}/{rM:.1f}        {am:.1f}/{aM:.1f}      {cm: .2f} /{cM: .2f}",
+        " {i:>5}   {b:5.1f}   {lZ: .2e}    {rm:.2f} / {rM:.2f}    {am:.2f} / {aM:.2f}      {cm: .2f} /{cM: .2f}",
         ordered=True,
         i=ending_round_idx,
         b=total_barrier(pt_state.stats.barrier_fit),
