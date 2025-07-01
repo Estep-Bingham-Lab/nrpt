@@ -127,8 +127,7 @@ Final energy: 3.5e+02
 ```
 In this context, tempered potential simply corresponds to the negative log
 posterior density. Note that the optimization phase reduced the potential
-by 5 orders of magnitude. This usually leads to NRPT behaving qualitatively
-better.
+by 5 orders of magnitude.
 
 Now we are in place to run NRPT, which we do via
 ```python
