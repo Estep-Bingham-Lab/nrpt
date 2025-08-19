@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 dependencies = [
     "jax",
     "numpyro",
-    "autostep @ git+https://github.com/UBC-Stat-ML/autostep.git"
+    "autostep"
 ]
 
 [project.urls]
@@ -20,6 +20,3 @@ Repository = "https://github.com/Estep-Bingham-Lab/nrpt.git"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.hatch.metadata]
-allow-direct-references = true

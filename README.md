@@ -18,6 +18,7 @@ version of JAX.
 
 Using pip
 ```bash
+pip install autostep @ git+https://github.com/UBC-Stat-ML/autostep.git
 pip install nrpt @ git+https://github.com/Estep-Bingham-Lab/nrpt.git
 ```
 
