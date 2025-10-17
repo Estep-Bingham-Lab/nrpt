@@ -103,9 +103,18 @@ def init_swap_group_actions(n_replicas):
     ]
     return jnp.array([idx_even_group_action, idx_odd_group_action])
 
-def init_replica_states(kernel, rng_key, n_replicas, model_args, model_kwargs):
+def init_replica_states(
+        kernel, 
+        rng_key, 
+        n_replicas, 
+        init_params, 
+        model_args, 
+        model_kwargs
+    ):
     # use the kernel initialization to get a prototypical state
-    prototype_init_state = kernel.init(rng_key, 0, None, model_args, model_kwargs)
+    prototype_init_state = kernel.init(
+        rng_key, 0, init_params, model_args, model_kwargs
+    )
 
     # extend the prototypical state to all replicas
     return jax.tree.map(
@@ -156,13 +165,14 @@ def init_pt_state(
         rng_key, 
         n_replicas, 
         n_rounds,
+        init_params,
         model_args, 
         model_kwargs, 
         collect_samples
     ):
     rng_key, init_key = random.split(rng_key)
     replica_states = init_replica_states(
-        kernel, init_key, n_replicas, model_args, model_kwargs
+        kernel, init_key, n_replicas, init_params, model_args, model_kwargs
     )
     replica_states, replica_to_chain_idx, chain_to_replica_idx = init_schedule(
         replica_states, n_replicas
@@ -193,7 +203,8 @@ def PT(
         rng_key, 
         n_replicas = 10, 
         n_rounds = 10, 
-        n_refresh = 3, 
+        n_refresh = 3,
+        init_params = None,
         model_args = (), 
         model_kwargs = {},
         collect_samples = True
@@ -204,6 +215,7 @@ def PT(
         rng_key, 
         n_replicas, 
         n_rounds,
+        init_params,
         model_args, 
         model_kwargs, 
         collect_samples
