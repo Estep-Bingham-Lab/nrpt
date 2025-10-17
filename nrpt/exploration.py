@@ -74,15 +74,23 @@ def explore(
         chain_idx
     ):
     """
-    Sample iid from prior if replica is targeting the reference chain; 
-    otherwise, take `n_refresh` MCMC steps.
+    Sample iid from prior if sampling a proper model and replica is targeting 
+    the reference chain; otherwise, take `n_refresh` MCMC steps.
     """
-    return lax.cond(
-        jnp.logical_and(kernel.model is not None, chain_idx == 0),
-        partial(sample_iid_kernel_state, kernel, model_args, model_kwargs),
-        partial(loop_sample, kernel, n_refresh, model_args, model_kwargs),
-        kernel_state
-    )
+    if kernel.model is None:
+        kernel_state = loop_sample(
+            kernel, n_refresh, model_args, model_kwargs, kernel_state
+        )
+    else:
+        kernel_state = lax.cond(
+            chain_idx == 0,
+            partial(sample_iid_kernel_state, kernel, model_args, model_kwargs),
+            partial(loop_sample, kernel, n_refresh, model_args, model_kwargs),
+            kernel_state
+        )
+        
+    return kernel_state
+
 
 def exploration_step(kernel, pt_state, n_refresh, model_args, model_kwargs):
     """
