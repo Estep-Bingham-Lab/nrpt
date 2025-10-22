@@ -105,8 +105,9 @@ def print_round_summary(ending_round_idx, explorer_mean_acc_prob, pt_state):
         rM=pt_state.stats.last_round_rej_probs.max(),
         am=explorer_mean_acc_prob.min(),
         aM=explorer_mean_acc_prob.mean(),
-        cm=ll_ac1s.mean(),
-        cM=ll_ac1s.max()
+        # exclude ref as its loglik is usually non-integrable
+        cm=ll_ac1s[1:].mean(),
+        cM=ll_ac1s[1:].max()
     )
 
 def postprocess_round(kernel, pt_state):
