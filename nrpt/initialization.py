@@ -104,6 +104,9 @@ def init_swap_group_actions(n_replicas):
     return jnp.array([idx_even_group_action, idx_odd_group_action])
 
 def validate_initial_replica_states(kernel, replica_states):
+    if not hasattr(kernel, "update_log_joint"):
+        return replica_states
+
     # compute log joint at the initial point
     replica_states = jax.vmap(kernel.update_log_joint)(
         replica_states, replica_states.base_precond_state
