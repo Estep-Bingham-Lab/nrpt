@@ -35,6 +35,7 @@ class TestToyExamples(unittest.TestCase):
             model, logprior_and_loglik=logprior_and_loglik
         )
         for kernel in (kernel_model, kernel_no_model):
+            # build PT
             pt_sampler = initialization.PT(
                 kernel, 
                 rng_key,
@@ -43,9 +44,26 @@ class TestToyExamples(unittest.TestCase):
                 model_args=model_args,
                 model_kwargs=model_kwargs
             )
+
+            # check init_params were used the second time
+            if init_params is not None:
+                self.assertTrue(
+                    jax.tree.all(
+                        jax.tree.map(
+                            jnp.allclose,
+                            getattr(
+                                pt_sampler.pt_state.replica_states, 
+                                kernel.sample_field
+                            ),
+                            init_params
+                        )
+                    )
+                )
+            
+            # run
             pt_sampler = sampling.run(pt_sampler)
             pt_state = pt_sampler.pt_state
-            
+
             # check loglik ac1 are in the correct range 
             # (only true when estimator has stabilized)
             ll_acs = statistics.loglik_autocors(pt_state)

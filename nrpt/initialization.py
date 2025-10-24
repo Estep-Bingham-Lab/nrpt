@@ -103,6 +103,27 @@ def init_swap_group_actions(n_replicas):
     ]
     return jnp.array([idx_even_group_action, idx_odd_group_action])
 
+def validate_initial_replica_states(kernel, replica_states):
+    # compute log joint at the initial point
+    replica_states = jax.vmap(kernel.update_log_joint)(
+        replica_states, replica_states.base_precond_state
+    )
+
+    # check everythin remains finite
+    valid_initial_states = jax.tree.all(
+        jax.tree.map(
+            lambda x: jnp.all(jnp.isfinite(x)), 
+            replica_states
+        )
+    )
+
+    # abort if not
+    if not valid_initial_states:
+        raise RuntimeError(
+            f"Found invalid initial replica states; dumping below\n{replica_states}"
+        )
+    return replica_states
+
 def init_replica_states(
         kernel, 
         rng_key, 
@@ -117,7 +138,7 @@ def init_replica_states(
     )
 
     # extend the prototypical state to all replicas
-    return jax.tree.map(
+    replica_states = jax.tree.map(
         lambda xs: (
             random.split(xs, n_replicas) 
             if is_prng_key(xs)
@@ -125,6 +146,9 @@ def init_replica_states(
         ),
         prototype_init_state
     )
+
+    # validate initial replica state and return if all good
+    return validate_initial_replica_states(kernel, replica_states)
 
 def init_schedule(replica_states, n_replicas):
     chain_to_replica_idx = jnp.arange(n_replicas)    # init to identity permutation
@@ -178,6 +202,8 @@ def init_pt_state(
         replica_states, n_replicas
     )
     stats = statistics.init_stats(n_replicas)
+
+    # maybe build samples container
     if collect_samples:
         samples = init_samples_container(
             kernel, 
@@ -197,6 +223,7 @@ def init_pt_state(
         stats,
         samples
     )
+
 
 def PT(
         kernel, 
