@@ -83,8 +83,8 @@ def maybe_store_sample(kernel, model_args, model_kwargs, pt_state, n_rounds):
 
 def print_summary_header():
     jax.debug.print(
-        " Round |     Λ |      logZ | ρ (mean/max) | α (min/mean) | llAC (mean/max) \n" \
-        "---------------------------------------------------------------------------",
+        " Round |     Λ |      logZ | ρ (mean/max/amax) |      β₁ | α (min/mean) | llAC (mean/max) \n" \
+        "------------------------------------------------------------------------------------------",
         ordered=True
     )
     return
@@ -94,15 +94,20 @@ def print_round_summary(ending_round_idx, explorer_mean_acc_prob, pt_state):
     lax.cond(ending_round_idx == 1, print_summary_header, lambda: None)
 
     # print row
-    ll_ac1s = statistics.loglik_autocors(pt_state) 
+    ll_ac1s = statistics.loglik_autocors(pt_state)
+    replica_beta_1 = pt_state.chain_to_replica_idx[1]
+    beta_1 = pt_state.replica_states.inv_temp[replica_beta_1]
+    arg_max_rej = pt_state.stats.last_round_rej_probs.argmax()
     jax.debug.print(
-        " {i:>5}   {b:5.1f}   {lZ: .2e}    {rm:.2f} / {rM:.2f}    {am:.2f} / {aM:.2f}      {cm: .2f} /{cM: .2f}",
+        " {i:>5}   {b:5.1f}   {lZ: .2e}   {rm:.2f} / {rM:.2f} / {iM:<3}   {b1:.1e}    {am:.2f} / {aM:.2f}      {cm: .2f} /{cM: .2f}",
         ordered=True,
         i=ending_round_idx,
         b=total_barrier(pt_state.stats.barrier_fit),
         lZ=logZ_at_target(pt_state.stats.logZ_fit),
         rm=pt_state.stats.last_round_rej_probs.mean(),
-        rM=pt_state.stats.last_round_rej_probs.max(),
+        rM=pt_state.stats.last_round_rej_probs[arg_max_rej],
+        iM=arg_max_rej,
+        b1=beta_1,
         am=explorer_mean_acc_prob.min(),
         aM=explorer_mean_acc_prob.mean(),
         # exclude ref as its loglik is usually non-integrable
