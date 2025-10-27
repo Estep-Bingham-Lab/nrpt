@@ -6,6 +6,7 @@ from jax import numpy as jnp
 from nrpt import initialization
 from nrpt import sampling
 from nrpt import swaps
+from nrpt import utils
 
 from tests import utils as testutils
 
@@ -25,7 +26,7 @@ def replica_chain_maps_agree(replica_to_chain_idx, chain_to_replica_idx):
     )
 
 def chain_to_replica_map_sorts_inv_temps(inv_temps, chain_to_replica_idx):
-    return testutils.is_increasing(inv_temps[chain_to_replica_idx])
+    return utils.is_increasing(inv_temps[chain_to_replica_idx])
 
 class TestSwaps(unittest.TestCase):
 

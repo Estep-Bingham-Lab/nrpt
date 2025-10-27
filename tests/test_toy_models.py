@@ -10,7 +10,7 @@ from jax import numpy as jnp
 
 from autostep import autohmc, tempering
 
-from nrpt import initialization, sampling, statistics, toy_examples
+from nrpt import initialization, sampling, statistics, toy_examples, utils
 
 from tests import utils as testutils
 
@@ -84,7 +84,7 @@ class TestToyExamples(unittest.TestCase):
             self.assertTrue(jnp.isclose(total_barrier, true_barrier, rtol=0.2))
 
             # check base step size decreases with inv_temp
-            self.assertTrue(testutils.is_increasing(
+            self.assertTrue(utils.is_increasing(
                 -pt_state.replica_states.base_step_size[pt_state.chain_to_replica_idx[1:]]
             ))
 
