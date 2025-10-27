@@ -162,9 +162,10 @@ def init_schedule_log(replica_states, n_replicas):
     """
     initial_log_liks = replica_states.log_lik
     log2_beta_1 = jnp.clip(
-        -2*jnp.log2(jnp.abs(initial_log_liks.min())),
+        # aim for beta1 ~ (max_i(|loglik_i|))^{-3}
+        -3*jnp.log2(jnp.abs(initial_log_liks).max()),
         # don't go under the precision
-        jnp.finfo(initial_log_liks.dtype).machep,
+        jnp.finfo(initial_log_liks.dtype).minexp,
         # don't go over the exponent we would get with linear schedule
         -jnp.log2(n_replicas-1)
     )
