@@ -5,6 +5,8 @@ from jax import numpy as jnp
 from jax import lax
 from jax import random
 
+from numpyro import util
+
 from autostep import autostep
 
 # core (deterministic) swap mechanism
@@ -81,6 +83,26 @@ def swap_replica_states(kernel, replica_states, replica_swap_partner):
         inv_temp = new_inv_temp
     )
 
+def sanitize_log_liks(kernel, chain_log_liks):
+    """
+    In most interesting models, the likelihood has a support strictly included
+    in the support of the prior (or reference). So if iid sampling is used at 
+    this chain, the sample obtained might show non-finite log likelihood value.
+    This utility fixes this.
+    """
+    # don't do anything if iid sampling is not available; we don't want to mask
+    # other types of errors
+    if kernel.model is None:
+        return chain_log_liks
+    
+    # set the log lik at the reference to a very negative val if it isn't finite
+    return lax.cond(
+        jnp.isfinite(chain_log_liks[0]),
+        util.identity,
+        lambda x: x.at[0].set(jnp.finfo(x.dtype).min),
+        chain_log_liks
+    )
+
 # Communication step
 #  
 # acc prob of swapping 2 states is proportional to ratio
@@ -114,10 +136,14 @@ def communication_step(kernel, pt_state, is_odd_scan, swap_group_actions):
     chain_to_replica_idx = pt_state.chain_to_replica_idx
     replica_states = pt_state.replica_states
 
+    # Obtain the inverse temperatures and log likelihood values sorted by chain.
     # We need the map
     #   Chain -> (inv_temp, loglik) == Chain -> Replica -> (inv_temp, loglik)
     inv_temp_schedule = replica_states.inv_temp[chain_to_replica_idx]
     chain_log_liks = replica_states.log_lik[chain_to_replica_idx]
+    
+    # compute acceptance ratios and rejection probs
+    chain_log_liks = sanitize_log_liks(kernel, chain_log_liks) 
     delta_inv_temp = jnp.diff(inv_temp_schedule)
     delta_LL = jnp.diff(chain_log_liks)
     neg_log_acc_ratio = delta_inv_temp * delta_LL # == -log(accept ratio)

@@ -99,7 +99,7 @@ def print_round_summary(ending_round_idx, explorer_mean_acc_prob, pt_state):
     beta_1 = pt_state.replica_states.inv_temp[replica_beta_1]
     arg_max_rej = pt_state.stats.last_round_rej_probs.argmax()
     jax.debug.print(
-        " {i:>5}   {b:5.1f}   {lZ: .2e}   {rm:.2f} / {rM:.2f} / {iM:<3}   {b1:.1e}    {am:.2f} / {aM:.2f}      {cm: .2f} /{cM: .2f}",
+        " {i:>5}   {b:5.1f}   {lZ: .2e}    {rm:.2f} / {rM:.2f} / {iM:>2}   {b1:.1e}    {am:.2f} / {aM:.2f}      {cm: .2f} /{cM: .2f}",
         ordered=True,
         i=ending_round_idx,
         b=total_barrier(pt_state.stats.barrier_fit),
@@ -179,7 +179,7 @@ def pt_scan(
             n_rounds
         )
     
-    # stats update (in particular iterators) 
+    # stats update (in particular, the iterators) 
     pt_state = statistics.post_scan_stats_update(
         pt_state, 
         swap_reject_probs, 
