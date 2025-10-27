@@ -70,27 +70,9 @@ def adapt_explorers(kernel, pt_state):
     if not isinstance(kernel, autostep.AutoStep):
         return pt_state
     
-    # start by triggering `adapt` on all replicas
+    # trigger `adapt` on all replicas
     replica_states = jax.vmap(partial(kernel.adapt, force=True))(
         pt_state.replica_states
     )
 
-    # postprocess
-    #   - force fitted step size >=1% of mean across chains 
-    #   - NOT USED: force all to use the base preconditioner for the target
-    # n_replicas = len(replica_states.base_step_size)
-    mean_base_step_size = replica_states.base_step_size.mean()
-    # target_replica_idx = pt_state.chain_to_replica_idx[-1]
-    # target_prec_state = jax.tree.map(
-    #     itemgetter(target_replica_idx), replica_states.base_precond_state
-    # )
-    replica_states = replica_states._replace(
-        base_step_size = lax.max(
-            replica_states.base_step_size, 0.01*mean_base_step_size
-        ),
-        # base_precond_state = jax.tree.map(
-        #     lambda x: lax.broadcast(x, (n_replicas,)),
-        #     target_prec_state
-        # )
-    )
     return pt_state._replace(replica_states = replica_states)
