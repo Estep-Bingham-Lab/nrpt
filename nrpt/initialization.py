@@ -9,6 +9,7 @@ from numpyro.util import is_prng_key
 
 from nrpt import sampling
 from nrpt import statistics
+from nrpt import utils
 
 ###############################################################################
 # type definitions
@@ -153,12 +154,48 @@ def init_replica_states(
     # validate initial replica state and return if all good
     return validate_initial_replica_states(kernel, replica_states)
 
-def init_schedule(replica_states, n_replicas):
-    chain_to_replica_idx = jnp.arange(n_replicas)    # init to identity permutation
-    replica_to_chain_idx = jnp.arange(n_replicas)    # id = argsort(id)
-    inv_temp_schedule = jnp.linspace(0,1,n_replicas) # init to uniform grid
-    replica_states = replica_states._replace(inv_temp=inv_temp_schedule)
-    return replica_states, replica_to_chain_idx, chain_to_replica_idx
+def init_schedule_log(replica_states, n_replicas):
+    """
+    Find a log2-linear schedule with the property that
+    `beta[1]*initial_log_lik` is close to 0.
+
+    """
+    initial_log_liks = replica_states.log_lik
+    log2_beta_1 = jnp.clip(
+        -2*jnp.log2(jnp.abs(initial_log_liks.min())),
+        # don't go under the precision
+        jnp.finfo(initial_log_liks.dtype).machep,
+        # don't go over the exponent we would get with linear schedule
+        -jnp.log2(n_replicas-1)
+    )
+    return jnp.insert(
+        2**jnp.linspace(log2_beta_1, 0, n_replicas-2,False), 
+        jnp.array([0, n_replicas]), 
+        jnp.array([0, 1])
+    )
+
+def init_schedule(replica_states, n_replicas, initial_schedule):
+    if isinstance(initial_schedule, jax.typing.ArrayLike):
+        assert (
+            initial_schedule.shape == (n_replicas,) and
+            initial_schedule[ 0] == 0 and 
+            initial_schedule[-1] == 1 and 
+            utils.is_increasing(initial_schedule)
+        )
+        inv_temp_schedule = initial_schedule
+    elif initial_schedule == "linear":
+        inv_temp_schedule = jnp.linspace(n_replicas)
+    elif initial_schedule == "log":
+        inv_temp_schedule = init_schedule_log(replica_states, n_replicas)
+    else:
+        raise ValueError(
+            f"Don't know how to handle `initial_schedule`={initial_schedule}"
+        )
+    
+    # update the replica states and return
+    # note: this assume that the initial permutation is the identity
+    return replica_states._replace(inv_temp=inv_temp_schedule)
+
 
 def init_samples_container(
         kernel, 
@@ -195,15 +232,24 @@ def init_pt_state(
         init_params,
         model_args, 
         model_kwargs, 
-        collect_samples
+        collect_samples,
+        initial_schedule
     ):
     rng_key, init_key = random.split(rng_key)
+
+    # init_replica states
     replica_states = init_replica_states(
         kernel, init_key, n_replicas, init_params, model_args, model_kwargs
     )
-    replica_states, replica_to_chain_idx, chain_to_replica_idx = init_schedule(
-        replica_states, n_replicas
-    )
+
+    # init permutations
+    chain_to_replica_idx = jnp.arange(n_replicas) # init to identity permutation
+    replica_to_chain_idx = jnp.arange(n_replicas) # id = argsort(id)
+
+    # init schedule
+    replica_states = init_schedule(replica_states, n_replicas, initial_schedule)
+
+    # init statistics
     stats = statistics.init_stats(n_replicas)
 
     # maybe build samples container
@@ -237,7 +283,8 @@ def PT(
         init_params = None,
         model_args = (), 
         model_kwargs = {},
-        collect_samples = True
+        collect_samples = True,
+        initial_schedule = "linear"
     ):
     swap_group_actions = init_swap_group_actions(n_replicas)
     pt_state = init_pt_state(
@@ -248,7 +295,8 @@ def PT(
         init_params,
         model_args, 
         model_kwargs, 
-        collect_samples
+        collect_samples,
+        initial_schedule
     )
     return PTSampler(
         kernel, 
