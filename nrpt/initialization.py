@@ -184,7 +184,7 @@ def init_schedule(replica_states, n_replicas, initial_schedule):
         )
         inv_temp_schedule = initial_schedule
     elif initial_schedule == "linear":
-        inv_temp_schedule = jnp.linspace(n_replicas)
+        inv_temp_schedule = jnp.linspace(0,1,n_replicas)
     elif initial_schedule == "log":
         inv_temp_schedule = init_schedule_log(replica_states, n_replicas)
     else:
