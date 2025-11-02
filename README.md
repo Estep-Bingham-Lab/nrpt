@@ -57,7 +57,9 @@ We can load it along all the required dependencies using
 from jax import random
 from jax import numpy as jnp
 
-from autostep import autorwmh
+from numpyro.diagnostics import print_summary
+
+from autostep import autohmc
 
 from nrpt import initialization
 from nrpt import sampling
