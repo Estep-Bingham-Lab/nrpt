@@ -162,8 +162,8 @@ def init_schedule_log(replica_states, n_replicas):
     """
     initial_log_liks = replica_states.log_lik
     log2_beta_1 = jnp.clip(
-        # aim for beta1 ~ (max_i(|loglik_i|))^{-3}
-        -3*jnp.log2(jnp.abs(initial_log_liks).max()),
+        # aim for beta1 ~ max_i(|loglik_i|)
+        -jnp.log2(jnp.abs(initial_log_liks).max()),
         # don't go under the precision
         jnp.finfo(initial_log_liks.dtype).minexp,
         # don't go over the exponent we would get with linear schedule
@@ -285,7 +285,7 @@ def PT(
         model_args = (), 
         model_kwargs = {},
         collect_samples = True,
-        initial_schedule = "linear"
+        initial_schedule = "log"
     ):
     swap_group_actions = init_swap_group_actions(n_replicas)
     pt_state = init_pt_state(
