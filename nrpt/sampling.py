@@ -1,5 +1,6 @@
 from functools import partial
 from operator import itemgetter
+import time
 
 import jax
 from jax import lax
@@ -83,8 +84,8 @@ def maybe_store_sample(kernel, model_args, model_kwargs, pt_state, n_rounds):
 
 def print_summary_header():
     jax.debug.print(
-        "  R |  Δt (s) |    Λ |      logZ | ρ (mean/max/amax) |      β₁ | α (min/mean) | llAC (mean/max) \n" \
-        "------------------------------------------------------------------------------------------------",
+        "  R |  Δt (s) |    Λ |      logZ | ρ (mean/max/amax) |    β₁ | α (min/mean) | llAC (mean/max) \n" \
+        "----------------------------------------------------------------------------------------------",
         ordered=True
     )
     return
@@ -104,7 +105,7 @@ def print_round_summary(
     beta_1 = pt_state.replica_states.inv_temp[replica_beta_1]
     arg_max_rej = pt_state.stats.last_round_rej_probs.argmax()
     jax.debug.print(
-        " {i:>2}  {tt: .1e}    {b:2.1f}   {lZ: .2e}    {rm:.2f} / {rM:.2f} / {iM:>2}   {b1:.1e}    {am:.2f} / {aM:.2f}      {cm: .2f} /{cM: .2f}",
+        " {i:>2}  {tt: .1e}    {b:2.1f}   {lZ: .2e}    {rm:.2f} / {rM:.2f} / {iM:>2}   {b1:.0e}    {am:.2f} / {aM:.2f}      {cm: .2f} /{cM: .2f}",
         ordered=True,
         i=ending_round_idx,
         tt=round_duration,
@@ -223,6 +224,13 @@ def run(pt_sampler):
         model_kwargs,
         swap_group_actions
     ) = pt_sampler
+    # capture the starting time of the first round
+    # note: `run` itself is not jitted so we can just directly call the timer
+    pt_state._replace(
+        stats= pt_state.stats._replace(
+            last_round_start_time = time.perf_counter()
+        )
+    )
 
     # perform scans sequentially in a `lax.scan` loop
     n_scans = total_scans(n_rounds)

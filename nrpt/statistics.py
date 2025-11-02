@@ -134,7 +134,7 @@ def end_of_round_stats_update(pt_state, barrier_fit):
     stats = pt_state.stats
     round_ending_time = jax.experimental.io_callback(
         time.perf_counter, 
-        jnp.array(1, stats.current_round_rej_probs.dtype),
+        stats.last_round_start_time,
         ordered=True
     )
     round_duration = round_ending_time - stats.last_round_start_time
