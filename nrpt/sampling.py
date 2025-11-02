@@ -83,13 +83,18 @@ def maybe_store_sample(kernel, model_args, model_kwargs, pt_state, n_rounds):
 
 def print_summary_header():
     jax.debug.print(
-        " Round |     Λ |      logZ | ρ (mean/max/amax) |      β₁ | α (min/mean) | llAC (mean/max) \n" \
-        "------------------------------------------------------------------------------------------",
+        "  R |  Δt (s) |    Λ |      logZ | ρ (mean/max/amax) |      β₁ | α (min/mean) | llAC (mean/max) \n" \
+        "------------------------------------------------------------------------------------------------",
         ordered=True
     )
     return
 
-def print_round_summary(ending_round_idx, explorer_mean_acc_prob, pt_state):
+def print_round_summary(
+        ending_round_idx, 
+        explorer_mean_acc_prob, 
+        pt_state, 
+        round_duration
+    ):
     # print a header in first round
     lax.cond(ending_round_idx == 1, print_summary_header, lambda: None)
 
@@ -99,9 +104,10 @@ def print_round_summary(ending_round_idx, explorer_mean_acc_prob, pt_state):
     beta_1 = pt_state.replica_states.inv_temp[replica_beta_1]
     arg_max_rej = pt_state.stats.last_round_rej_probs.argmax()
     jax.debug.print(
-        " {i:>5}   {b:5.1f}   {lZ: .2e}    {rm:.2f} / {rM:.2f} / {iM:>2}   {b1:.1e}    {am:.2f} / {aM:.2f}      {cm: .2f} /{cM: .2f}",
+        " {i:>2}  {tt: .1e}    {b:2.1f}   {lZ: .2e}    {rm:.2f} / {rM:.2f} / {iM:>2}   {b1:.1e}    {am:.2f} / {aM:.2f}      {cm: .2f} /{cM: .2f}",
         ordered=True,
         i=ending_round_idx,
+        tt=round_duration,
         b=total_barrier(pt_state.stats.barrier_fit),
         lZ=logZ_at_target(pt_state.stats.logZ_fit),
         rm=pt_state.stats.last_round_rej_probs.mean(),
@@ -127,10 +133,14 @@ def postprocess_round(kernel, pt_state):
     pt_state, barrier_fit = adaptation.adapt_schedule(pt_state)
 
     # collect statistics
-    pt_state = statistics.end_of_round_stats_update(pt_state, barrier_fit)
+    pt_state, round_duration = statistics.end_of_round_stats_update(
+        pt_state, barrier_fit
+    )
 
     # print info
-    print_round_summary(ending_round_idx, explorer_mean_acc_prob, pt_state)
+    print_round_summary(
+        ending_round_idx, explorer_mean_acc_prob, pt_state, round_duration
+    )
 
     return pt_state
 

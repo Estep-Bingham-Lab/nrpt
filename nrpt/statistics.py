@@ -1,5 +1,7 @@
 from collections import namedtuple
+import time
 
+import jax
 from jax import numpy as jnp
 
 from nrpt import interpolation
@@ -20,7 +22,8 @@ PTStats = namedtuple(
         "current_round_dlogZ_estimates",
         "logZ_fit",
         "current_round_loglik_stats",
-        "last_round_loglik_stats"
+        "last_round_loglik_stats",
+        "last_round_start_time"
     ],
 )
 """
@@ -36,6 +39,7 @@ run. It consists of the fields:
  - **logZ_fit** - jhfg.
  - **current_round_loglik_stats** - jhfg.
  - **last_round_loglik_stats** - jhfg.
+ - **last_round_start_time** - jhfg.
 """
 
 def init_stats(n_replicas):
@@ -48,7 +52,8 @@ def init_stats(n_replicas):
         logZ.init_estimates(n_replicas),
         interpolation.empty_interpolator(n_replicas),
         jnp.zeros((3, n_replicas)),
-        jnp.zeros((3, n_replicas))
+        jnp.zeros((3, n_replicas)),
+        time.perf_counter()
     )
 
 def update_loglik_stats(
@@ -127,7 +132,13 @@ def post_scan_stats_update(
 
 def end_of_round_stats_update(pt_state, barrier_fit):
     stats = pt_state.stats
-    return pt_state._replace(
+    round_ending_time = jax.experimental.io_callback(
+        time.perf_counter, 
+        jnp.array(1, stats.current_round_rej_probs.dtype),
+        ordered=True
+    )
+    round_duration = round_ending_time - stats.last_round_start_time
+    pt_state = pt_state._replace(
         stats = stats._replace(
             scan_idx = 1,
             round_idx = stats.round_idx + 1,
@@ -145,9 +156,11 @@ def end_of_round_stats_update(pt_state, barrier_fit):
             current_round_loglik_stats = jnp.zeros_like(
                 stats.current_round_loglik_stats
             ),
-            last_round_loglik_stats = stats.current_round_loglik_stats
+            last_round_loglik_stats = stats.current_round_loglik_stats,
+            last_round_start_time = round_ending_time
         )
     )
+    return pt_state, round_duration
 
 def loglik_autocors(pt_state):
     last_round_loglik_stats = pt_state.stats.last_round_loglik_stats
