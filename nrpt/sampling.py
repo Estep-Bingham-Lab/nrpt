@@ -128,13 +128,16 @@ def print_round_summary(
 def postprocess_round(kernel, n_rounds, pt_state):
     ending_round_idx = pt_state.stats.round_idx
 
+    # adapt schedule
+    pt_state, barrier_fit = adaptation.adapt_schedule(pt_state)
+    old_inv_temp_schedule = barrier_fit.x
+
     # adapt explorers
     # capture acc probs before they are deleted
     explorer_mean_acc_prob = get_explorer_mean_acc_prob(kernel, pt_state)
-    pt_state = adaptation.adapt_explorers(kernel, pt_state)
-    
-    # adapt schedule
-    pt_state, barrier_fit = adaptation.adapt_schedule(pt_state)
+    pt_state = adaptation.adapt_explorers(
+        kernel, pt_state, old_inv_temp_schedule
+    )
 
     # collect statistics
     pt_state, round_duration = statistics.end_of_round_stats_update(
