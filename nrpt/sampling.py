@@ -40,7 +40,7 @@ def extract_sample(
         model_kwargs, 
         replica_states, 
         replica_idx,
-        extra_fields = ('log_lik', 'log_posterior', 'log_joint')
+        extra_fields = ('log_prior', 'log_lik', 'log_joint')
     ):
     # grab the state of the requested replica
     target_replica_state = jax.tree.map(itemgetter(replica_idx), replica_states)
@@ -84,8 +84,8 @@ def maybe_store_sample(kernel, model_args, model_kwargs, pt_state, n_rounds):
 
 def print_summary_header():
     jax.debug.print(
-        "  R |  Δt (s) |    Λ |      logZ | ρ (mean/max/amax) |    β₁ | α (min/mean) | llAC (mean/max) \n" \
-        "----------------------------------------------------------------------------------------------",
+        "  R |      Δt / ETA (s) |    Λ |      logZ | ρ (mean/max/amax) |    β₁ | α (min/mean) | llAC (mean/max) \n" \
+        "--------------------------------------------------------------------------------------------------------",
         ordered=True
     )
     return
@@ -93,22 +93,25 @@ def print_summary_header():
 def print_round_summary(
         ending_round_idx, 
         explorer_mean_acc_prob, 
-        pt_state, 
-        round_duration
+        pt_state,
+        round_duration,
+        n_rounds
     ):
     # print a header in first round
     lax.cond(ending_round_idx == 1, print_summary_header, lambda: None)
 
     # print row
+    ETA = round_duration*total_scans(n_rounds-ending_round_idx) # using this because we need the same type of sum 2+4+8+...
     ll_ac1s = statistics.loglik_autocors(pt_state)
     replica_beta_1 = pt_state.chain_to_replica_idx[1]
     beta_1 = pt_state.replica_states.inv_temp[replica_beta_1]
     arg_max_rej = pt_state.stats.last_round_rej_probs.argmax()
     jax.debug.print(
-        " {i:>2}  {tt: .1e}    {b:2.1f}   {lZ: .2e}    {rm:.2f} / {rM:.2f} / {iM:>2}   {b1:.0e}    {am:.2f} / {aM:.2f}      {cm: .2f} /{cM: .2f}",
+        " {i:>2}   {tt:.1e} / {et:.1e}    {b:2.1f}   {lZ: .2e}    {rm:.2f} / {rM:.2f} / {iM:>2}   {b1:.0e}    {am:.2f} / {aM:.2f}      {cm: .2f} /{cM: .2f}",
         ordered=True,
         i=ending_round_idx,
         tt=round_duration,
+        et=ETA,
         b=total_barrier(pt_state.stats.barrier_fit),
         lZ=logZ_at_target(pt_state.stats.logZ_fit),
         rm=pt_state.stats.last_round_rej_probs.mean(),
@@ -122,7 +125,7 @@ def print_round_summary(
         cM=ll_ac1s[1:].max()
     )
 
-def postprocess_round(kernel, pt_state):
+def postprocess_round(kernel, n_rounds, pt_state):
     ending_round_idx = pt_state.stats.round_idx
 
     # adapt explorers
@@ -140,7 +143,11 @@ def postprocess_round(kernel, pt_state):
 
     # print info
     print_round_summary(
-        ending_round_idx, explorer_mean_acc_prob, pt_state, round_duration
+        ending_round_idx, 
+        explorer_mean_acc_prob, 
+        pt_state, 
+        round_duration,
+        n_rounds
     )
 
     return pt_state
@@ -204,7 +211,7 @@ def pt_scan(
     # to get the index of the scan that just finished
     pt_state = lax.cond(
         pt_state.stats.scan_idx-1 == n_scans_in_round(pt_state.stats.round_idx),
-        partial(postprocess_round, kernel),
+        partial(postprocess_round, kernel, n_rounds),
         util.identity,
         pt_state
     )
