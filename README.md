@@ -80,9 +80,8 @@ and the noisy observations inside the `model_kwargs` dictionary.
 Following the NumPyro convention, we enclose the model in an MCMC sampler. In
 `nrpt`, this sampler will be used as the *explorer* in the NRPT terminology.
 Currently, `nrpt` only works with the MCMC samplers of the 
-[`autostep` package](https://github.com/UBC-Stat-ML/autostep), which is
-automatically installed along `nrpt`. For this example, we will use the
-AutoHMC sampler with the default 32 leapfrog steps.
+[`autostep` package](https://github.com/UBC-Stat-ML/autostep). For this 
+example, we will use the AutoHMC sampler with the default 32 leapfrog steps.
 ```python
 kernel = autohmc.AutoHMC(model)
 ```
