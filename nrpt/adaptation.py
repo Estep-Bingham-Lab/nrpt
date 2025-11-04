@@ -91,22 +91,25 @@ def adapt_explorers(kernel, pt_state, old_inv_temp_schedule):
         new_step_sizes
     )
     old_chain_to_new_step_map = interpolation.build_akima_interpolator(
-        old_inv_temp_schedule, new_step_sizes
+        old_inv_temp_schedule, jnp.log(new_step_sizes)
     )
-    predicted_step_sizes = interpolation.interpolate(
+    predicted_step_sizes = jnp.exp(interpolation.interpolate(
         old_chain_to_new_step_map, new_inv_temp_schedule
-    )
+    ))
 
-    # fix any invalid predicted values
-    predicted_step_sizes = jnp.where(
-        jnp.logical_or(
-            jnp.logical_not(jnp.isfinite(predicted_step_sizes)),
-            predicted_step_sizes <= 0
+    # fix any invalid predicted values and clamp to range
+    predicted_step_sizes = jnp.clip(
+        jnp.where(
+            jnp.logical_or(
+                jnp.logical_not(jnp.isfinite(predicted_step_sizes)),
+                predicted_step_sizes <= 0
+            ),
+            new_step_sizes,
+            predicted_step_sizes
         ),
-        new_step_sizes,
-        predicted_step_sizes
+        new_step_sizes.min(), new_step_sizes.max()
     )
-
+    
     # save to replica states
     replica_states = replica_states._replace(
         base_step_size = predicted_step_sizes[replica_to_chain_idx]
