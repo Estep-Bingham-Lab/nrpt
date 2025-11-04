@@ -84,8 +84,8 @@ def maybe_store_sample(kernel, model_args, model_kwargs, pt_state, n_rounds):
 
 def print_summary_header():
     jax.debug.print(
-        "  R |      Δt / ETA (s) |    Λ |      logZ | ρ (mean/max/amax) |    β₁ | α (min/mean) | llAC (mean/max) \n" \
-        "--------------------------------------------------------------------------------------------------------",
+        "  R |      Δt / ETA (s) |    Λ |      logZ | ρ (mean/max/amax) |    β₁ | α (min/mean) | AC (mean/max) \n" \
+        "------------------------------------------------------------------------------------------------------",
         ordered=True
     )
     return
@@ -107,7 +107,7 @@ def print_round_summary(
     beta_1 = pt_state.replica_states.inv_temp[replica_beta_1]
     arg_max_rej = pt_state.stats.last_round_rej_probs.argmax()
     jax.debug.print(
-        " {i:>2}   {tt:.1e} / {et:.1e}    {b:2.1f}   {lZ: .2e}    {rm:.2f} / {rM:.2f} / {iM:>2}   {b1:.0e}    {am:.2f} / {aM:.2f}      {cm: .2f} /{cM: .2f}",
+        " {i:>2}   {tt:.1e} / {et:.1e}   {b:4.1f}   {lZ: .2e}    {rm:.2f} / {rM:.2f} / {iM:>2}   {b1:.0e}    {am:.2f} / {aM:.2f}    {cm: .2f} /{cM: .2f}",
         ordered=True,
         i=ending_round_idx,
         tt=round_duration,
