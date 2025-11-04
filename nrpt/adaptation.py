@@ -35,16 +35,25 @@ def adapt_schedule(pt_state):
         jnp.arange(2, dtype=result_dtype) # force endpoints to be exactly (0,1) to avoid interpolator issues
     )
 
+    # replace 0 in schedule with very small (but reasonable) number and take log
+    sqrt_tiny = jnp.sqrt(jnp.finfo(result_dtype).smallest_normal)
+    log_adj_inv_temp_schedule = jnp.log(
+        inv_temp_schedule.at[0].set(sqrt_tiny)
+    )
+
     # find the equi-rejection schedule via interpolation
-    # 1) fit: P(norm-cumulative_barrier) = schedule (with P monotonic)
-    # 2) update: new_schedule = P(linspace in [0,1])
+    # 1) fit: P(norm-cumulative_barrier) = log(schedule) (with P monotonic)
+    # 2) update: new_schedule = exp(P(linspace in [0,1]))
     norm_barrier_to_inv_temp_interp = interpolation.build_pchip_interpolator(
-        normalized_estimated_barrier, inv_temp_schedule
+        normalized_estimated_barrier, log_adj_inv_temp_schedule
     )
-    new_inv_temp_schedule = interpolation.interpolate(
-        norm_barrier_to_inv_temp_interp, 
-        jnp.linspace(0, 1, n_replicas, dtype=result_dtype)
+    new_inv_temp_schedule = jnp.exp(
+        interpolation.interpolate(
+            norm_barrier_to_inv_temp_interp, 
+            jnp.linspace(0, 1, n_replicas, dtype=result_dtype)
+        )
     )
+    new_inv_temp_schedule = new_inv_temp_schedule.at[0].set(0.) # undo the adjustment to make it exactly 0
     new_inv_temp_schedule = new_inv_temp_schedule.at[-1].set(1.) # force it to be exactly 1 (without it, it differs by ~1e-7)
 
     # update inv_temps in replicas: need the map
