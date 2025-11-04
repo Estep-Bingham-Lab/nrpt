@@ -24,7 +24,7 @@ class TestToyExamples(unittest.TestCase):
         model, model_args, model_kwargs = toy_examples.toy_unid_example(n_heads, n_flips)
         true_barrier = 3.25 # long run
         init_params = None
-        kernel_model = autohmc.AutoMALA(model)
+        kernel_model = autohmc.AutoHMC(model)
         logprior_and_loglik = partial(
             tempering.model_logprior_and_loglik, 
             model, 
@@ -39,7 +39,7 @@ class TestToyExamples(unittest.TestCase):
             pt_sampler = initialization.PT(
                 kernel, 
                 rng_key,
-                n_replicas=math.ceil(2*true_barrier),
+                n_refresh=1,
                 init_params=init_params,
                 model_args=model_args,
                 model_kwargs=model_kwargs
