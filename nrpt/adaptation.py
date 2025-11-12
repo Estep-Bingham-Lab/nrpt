@@ -35,11 +35,9 @@ def adapt_schedule(pt_state):
         jnp.arange(2, dtype=result_dtype) # force endpoints to be exactly (0,1) to avoid interpolator issues
     )
 
-    # replace 0 in schedule with very small (but reasonable) number and take log
-    sqrt_tiny = jnp.sqrt(jnp.finfo(result_dtype).smallest_normal)
-    log_adj_inv_temp_schedule = jnp.log(
-        inv_temp_schedule.at[0].set(sqrt_tiny)
-    )
+    # take log of schedule, then replace -inf with reasonably small number
+    log_tiny = jnp.finfo(result_dtype).minexp*jnp.log(2) # == log(jnp.finfo(jnp.float32).smallest_normal)    
+    log_adj_inv_temp_schedule = jnp.log(inv_temp_schedule).at[0].set(log_tiny)
 
     # find the equi-rejection schedule via interpolation
     # 1) fit: P(norm-cumulative_barrier) = log(schedule) (with P monotonic)
