@@ -7,7 +7,7 @@ from jax import numpy as jnp
 from numpyro.handlers import seed, trace
 from numpyro.infer import util
 
-from autostep import autostep
+from automcmc import automcmc
 
 # sample from prior using NumPyro handlers
 def sample_from_prior(model, model_args, model_kwargs, rng_key):
@@ -27,7 +27,7 @@ def sample_iid_kernel_state(
         model_kwargs, 
         kernel_state
     ):
-    if not isinstance(kernel, autostep.AutoStep):
+    if not isinstance(kernel, automcmc.AutoMCMC):
         return kernel_state
 
     # sample from the prior in unconstraiend space

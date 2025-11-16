@@ -8,7 +8,7 @@ import jax
 from jax import random
 from jax import numpy as jnp
 
-from autostep import autohmc, tempering
+from automcmc import autohmc, tempering
 
 from nrpt import initialization, sampling, statistics, toy_examples, utils
 

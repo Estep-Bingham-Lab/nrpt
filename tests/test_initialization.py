@@ -3,7 +3,7 @@ import unittest
 from jax import random
 from jax import numpy as jnp
 
-from autostep import autohmc
+from automcmc import autohmc
 
 from nrpt import initialization, toy_examples
 

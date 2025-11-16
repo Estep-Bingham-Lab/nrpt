@@ -18,7 +18,7 @@ version of JAX.
 
 Using pip
 ```bash
-pip install autostep @ git+https://github.com/UBC-Stat-ML/autostep.git
+pip install automcmc @ git+https://github.com/UBC-Stat-ML/automcmc.git
 pip install nrpt @ git+https://github.com/Estep-Bingham-Lab/nrpt.git
 ```
 
@@ -39,9 +39,9 @@ indicating that schemes that used Parallel Tempering were the only ones able
 to accurately describe the posterior distribution. Indeed, its density is 
 bimodal and features narrow ridges.
 
-Here we will show that `nrpt` can leverage a simple yet fast gradient-free 
-sampler---autoRWMH, described in 
-[Liu et al. (2025)](https://arxiv.org/abs/2410.18929)---to tackle this inference task.
+Here we will show that `nrpt` can leverage an automatically tuned 
+sampler described in [Liu et al. (2025)](https://arxiv.org/abs/2410.18929)
+to tackle this inference task.
 For brevity, we won't go into the details of the model here; be sure to check 
 the references if you are curious. We also assume that you are familiar with 
 NRPT. Beyond the [original paper](https://doi.org/10.1111/rssb.12464), a good 
@@ -59,7 +59,7 @@ from jax import numpy as jnp
 
 from numpyro.diagnostics import print_summary
 
-from autostep import autohmc
+from automcmc import autohmc
 
 from nrpt import initialization
 from nrpt import sampling
@@ -78,7 +78,7 @@ and the noisy observations inside the `model_kwargs` dictionary.
 Following the NumPyro convention, we enclose the model in an MCMC sampler. In
 `nrpt`, this sampler will be used as the *explorer* in the NRPT terminology.
 Currently, `nrpt` only works with the MCMC samplers of the 
-[`autostep` package](https://github.com/UBC-Stat-ML/autostep). For this 
+[`automcmc` package](https://github.com/UBC-Stat-ML/automcmc). For this 
 example, we will use the AutoHMC sampler with the default 32 leapfrog steps.
 ```python
 kernel = autohmc.AutoHMC(model)
