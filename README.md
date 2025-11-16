@@ -18,7 +18,7 @@ version of JAX.
 
 Using pip
 ```bash
-pip install autostep @ git+https://github.com/UBC-Stat-ML/autostep.git
+pip install automcmc @ git+https://github.com/UBC-Stat-ML/automcmc.git
 pip install nrpt @ git+https://github.com/Estep-Bingham-Lab/nrpt.git
 ```
 
@@ -59,7 +59,7 @@ from jax import numpy as jnp
 
 from numpyro.diagnostics import print_summary
 
-from autostep import autohmc
+from automcmc import autohmc
 
 from nrpt import initialization
 from nrpt import sampling
@@ -78,7 +78,7 @@ and the noisy observations inside the `model_kwargs` dictionary.
 Following the NumPyro convention, we enclose the model in an MCMC sampler. In
 `nrpt`, this sampler will be used as the *explorer* in the NRPT terminology.
 Currently, `nrpt` only works with the MCMC samplers of the 
-[`autostep` package](https://github.com/UBC-Stat-ML/autostep). For this 
+[`automcmc` package](https://github.com/UBC-Stat-ML/automcmc). For this 
 example, we will use the AutoHMC sampler with the default 32 leapfrog steps.
 ```python
 kernel = autohmc.AutoHMC(model)

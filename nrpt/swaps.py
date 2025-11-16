@@ -7,7 +7,7 @@ from jax import random
 
 from numpyro import util
 
-from autostep import autostep
+from automcmc import automcmc
 
 # core (deterministic) swap mechanism
 def resolve_chain_to_replica_idx(
@@ -61,7 +61,7 @@ def resolve_replica_maps(old_replica_to_chain_idx, new_chain_to_replica_idx):
 
 # swap replica states: need to exchange between replica swap partners the 
 # fields that are chain-specific. At the very least this includes inv_temp.
-# AutoStep kernels also have
+# AutoMCMC kernels also have
 #   - stats
 #   - base_step_size
 #   - base_precond_state
@@ -70,7 +70,7 @@ def resolve_replica_maps(old_replica_to_chain_idx, new_chain_to_replica_idx):
 def swap_replica_states(kernel, replica_states, replica_swap_partner):
     new_inv_temp = replica_states.inv_temp[replica_swap_partner] # equivalent to inv_temp_schedule[new_replica_to_chain_idx]
 
-    if not isinstance(kernel, autostep.AutoStep):
+    if not isinstance(kernel, automcmc.AutoMCMC):
         return replica_states._replace(inv_temp = new_inv_temp)
 
     gettr = itemgetter(replica_swap_partner)

@@ -8,7 +8,7 @@ from jax import numpy as jnp
 
 from numpyro import util
 
-from autostep import autostep
+from automcmc import automcmc
 
 from nrpt import adaptation
 from nrpt import exploration
@@ -22,7 +22,7 @@ def total_scans(n_rounds):
     return 2 ** (n_rounds+1) - 2
 
 def get_explorer_mean_acc_prob(kernel, pt_state):
-    if not isinstance(kernel, autostep.AutoStep):
+    if not isinstance(kernel, automcmc.AutoMCMC):
         return jnp.array([1.])
     # sort by chain and exclude the first (no exploration, only iid sampling)
     replica_acc_probs = pt_state.replica_states.stats.adapt_stats.mean_acc_prob

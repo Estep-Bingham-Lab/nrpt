@@ -7,7 +7,7 @@ from jax import lax
 
 from numpyro import util
 
-from autostep import autostep
+from automcmc import automcmc
 
 from nrpt import interpolation
 
@@ -76,7 +76,7 @@ def adapt_explorers(kernel, pt_state, old_inv_temp_schedule):
     """
     Adapt the exploration kernels.
     """
-    if not isinstance(kernel, autostep.AutoStep):
+    if not isinstance(kernel, automcmc.AutoMCMC):
         return pt_state
     
     # trigger `adapt` on all replicas

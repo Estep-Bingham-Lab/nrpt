@@ -25,7 +25,7 @@ jobs:
         run: python -m pip install --upgrade pip
       - name: Install package + other dependencies
         run: |
-          pip install "autostep @ git+https://github.com/UBC-Stat-ML/autostep.git"
+          pip install "automcmc @ git+https://github.com/UBC-Stat-ML/automcmc.git"
           pip install . 
           pip install coverage
       - name: Run tests
