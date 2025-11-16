@@ -39,9 +39,9 @@ indicating that schemes that used Parallel Tempering were the only ones able
 to accurately describe the posterior distribution. Indeed, its density is 
 bimodal and features narrow ridges.
 
-Here we will show that `nrpt` can leverage a simple yet fast gradient-free 
-sampler---autoRWMH, described in 
-[Liu et al. (2025)](https://arxiv.org/abs/2410.18929)---to tackle this inference task.
+Here we will show that `nrpt` can leverage an automatically tuned 
+sampler described in [Liu et al. (2025)](https://arxiv.org/abs/2410.18929)
+to tackle this inference task.
 For brevity, we won't go into the details of the model here; be sure to check 
 the references if you are curious. We also assume that you are familiar with 
 NRPT. Beyond the [original paper](https://doi.org/10.1111/rssb.12464), a good 
