@@ -25,6 +25,7 @@ PTSampler = namedtuple(
         "model_args",
         "model_kwargs",
         "swap_group_actions",
+        "excluded_latent_vars"
     ],
 )
 """
@@ -38,6 +39,7 @@ consists of the fields:
  - **model_args** - jhfg.
  - **model_kwargs** - jhfg.
  - **swap_group_actions** - jhfg.
+ - **excluded_latent_vars** - jhfg.
 """
 
 PTState = namedtuple(
@@ -203,7 +205,8 @@ def init_samples_container(
         n_rounds, 
         model_args, 
         model_kwargs, 
-        replica_states
+        replica_states,
+        excluded_latent_vars
     ):
     # grab a generic replica state
     constrained_sample_with_extras = sampling.extract_sample(
@@ -212,6 +215,7 @@ def init_samples_container(
         model_kwargs, 
         replica_states, 
         0,
+        excluded_latent_vars
     )
 
     # use the above as template to create container
@@ -234,7 +238,8 @@ def init_pt_state(
         model_args, 
         model_kwargs, 
         collect_samples,
-        initial_schedule
+        initial_schedule,
+        excluded_latent_vars
     ):
     rng_key, init_key = random.split(rng_key)
 
@@ -260,7 +265,8 @@ def init_pt_state(
             n_rounds, 
             model_args, 
             model_kwargs,
-            replica_states
+            replica_states,
+            excluded_latent_vars
         )
     else: 
         samples = None
@@ -285,7 +291,8 @@ def PT(
         model_args = (), 
         model_kwargs = {},
         collect_samples = True,
-        initial_schedule = "log"
+        initial_schedule = "log",
+        excluded_latent_vars = {}
     ):
     swap_group_actions = init_swap_group_actions(n_replicas)
     pt_state = init_pt_state(
@@ -297,7 +304,8 @@ def PT(
         model_args, 
         model_kwargs, 
         collect_samples,
-        initial_schedule
+        initial_schedule,
+        excluded_latent_vars
     )
     return PTSampler(
         kernel, 
@@ -306,5 +314,6 @@ def PT(
         n_refresh, 
         model_args, 
         model_kwargs,
-        swap_group_actions
+        swap_group_actions,
+        frozenset(excluded_latent_vars)
     )

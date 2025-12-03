@@ -40,16 +40,23 @@ def extract_sample(
         model_kwargs, 
         replica_states, 
         replica_idx,
-        extra_fields = ('log_prior', 'log_lik', 'log_joint')
+        excluded_latent_vars,
+        extra_fields = ('log_prior', 'log_lik', 'log_joint'),
     ):
     # grab the state of the requested replica
     target_replica_state = jax.tree.map(itemgetter(replica_idx), replica_states)
 
-    # extract the kernel's sample field, then constrain the sample
+    # extract the kernel's sample field
     unconstrained_sample = getattr(target_replica_state, kernel.sample_field)
+
+    # constrain the sample
     constrained_sample = kernel.postprocess_fn(model_args, model_kwargs)(
         unconstrained_sample
     )
+
+    # maybe exclude some latent vars (must be done after constraining)
+    for k in excluded_latent_vars:
+        constrained_sample.pop(k, None)
 
     # add extra fields and return
     constrained_sample_with_extras = constrained_sample
@@ -57,13 +64,20 @@ def extract_sample(
         constrained_sample[f] = getattr(target_replica_state, f)
     return constrained_sample_with_extras
 
-def store_sample(kernel, model_args, model_kwargs, pt_state):
+def store_sample(
+        kernel, 
+        model_args, 
+        model_kwargs, 
+        excluded_latent_vars, 
+        pt_state
+    ):
     constrained_sample_with_extras = extract_sample(
         kernel, 
         model_args, 
         model_kwargs, 
         pt_state.replica_states, 
-        pt_state.chain_to_replica_idx[-1] # get the state of the replica in charge of the target chain
+        pt_state.chain_to_replica_idx[-1], # get the state of the replica in charge of the target chain
+        excluded_latent_vars
     )
     scan_idx = pt_state.stats.scan_idx
     samples = jax.tree.map(
@@ -73,11 +87,20 @@ def store_sample(kernel, model_args, model_kwargs, pt_state):
     )
     return pt_state._replace(samples = samples)
 
-def maybe_store_sample(kernel, model_args, model_kwargs, pt_state, n_rounds):
+def maybe_store_sample(
+        kernel, 
+        model_args, 
+        model_kwargs, 
+        pt_state, 
+        n_rounds,
+        excluded_latent_vars
+    ):
     # skip if we are not yet at the last round
     return lax.cond(
         n_rounds == pt_state.stats.round_idx,
-        partial(store_sample, kernel, model_args, model_kwargs),
+        partial(
+            store_sample, kernel, model_args, model_kwargs, excluded_latent_vars
+        ),
         util.identity,
         pt_state
     )
@@ -162,7 +185,8 @@ def pt_scan(
         n_refresh, 
         model_args, 
         model_kwargs,
-        swap_group_actions
+        swap_group_actions,
+        excluded_latent_vars
     ):
     """
     Run a full NRPT scan -- exploration + DEO communication -- and collect
@@ -197,7 +221,8 @@ def pt_scan(
             model_args, 
             model_kwargs, 
             pt_state, 
-            n_rounds
+            n_rounds,
+            excluded_latent_vars
         )
     
     # stats update (in particular, the iterators) 
@@ -232,7 +257,8 @@ def run(pt_sampler):
         n_refresh, 
         model_args, 
         model_kwargs,
-        swap_group_actions
+        swap_group_actions,
+        excluded_latent_vars
     ) = pt_sampler
     # capture the starting time of the first round
     # note: `run` itself is not jitted so we can just directly call the timer
@@ -253,7 +279,8 @@ def run(pt_sampler):
                 n_refresh, 
                 model_args, 
                 model_kwargs,
-                swap_group_actions
+                swap_group_actions,
+                excluded_latent_vars
             ),
             None
         ), 
