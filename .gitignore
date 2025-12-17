@@ -9,3 +9,5 @@ coverage.xml
 .vscode/
 *.png
 !docs/_static/img/*.png
+*.nsys-rep
+
