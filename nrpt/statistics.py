@@ -30,16 +30,22 @@ PTStats = namedtuple(
 A :func:`~collections.namedtuple` containing statistics gathered during a PT 
 run. It consists of the fields:
 
- - **scan_idx** - jhfg.
- - **round_idx** - jhfg.
- - **current_round_rej_probs** - jhfg.
- - **last_round_rej_probs** - jhfg.
- - **barrier_fit** - jhfg.
- - **current_round_dlogZ_estimates** - jhfg.
- - **logZ_fit** - jhfg.
- - **current_round_loglik_stats** - jhfg.
- - **last_round_loglik_stats** - jhfg.
- - **last_round_start_time** - jhfg.
+ - **scan_idx** - 1-based index of the current scan .
+ - **round_idx** - 1-based index of the current round.
+ - **current_round_rej_probs** - running mean of the rejection probabilities
+     in the current round.
+ - **last_round_rej_probs** - mean rejection probabilities of the last round.
+ - **barrier_fit** - a :class:`interpolation.PiecewiseCubicInterpolator` 
+     defining an estimate of the barrier function.
+ - **current_round_dlogZ_estimates** - online stepping stone estimator for the
+     normalizing constant.     
+ - **logZ_fit** - a :class:`interpolation.PiecewiseCubicInterpolator` defining
+     the normalizing constant as a function of the inverse temperature (i.e., 
+     the partition function).
+ - **current_round_loglik_stats** - online estimators needed to approximate the
+     autocorrelation of the log-likelihood.
+ - **last_round_loglik_stats** - log-likelihood statistics for the previous round.
+ - **last_round_start_time** - time at which the previous round started.
 """
 
 def init_stats(n_replicas):
