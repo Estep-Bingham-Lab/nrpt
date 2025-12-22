@@ -1,10 +1,13 @@
 from collections import namedtuple
+from collections.abc import Iterable
 
 import jax
 from jax import numpy as jnp
 from jax import lax
 from jax import random
+from jax.typing import ArrayLike
 
+from numpyro.infer.mcmc import MCMCKernel
 from numpyro.util import is_prng_key
 
 from nrpt import sampling
@@ -25,21 +28,25 @@ PTSampler = namedtuple(
         "model_args",
         "model_kwargs",
         "swap_group_actions",
-        "excluded_latent_vars"
+        "excluded_latent_vars",
+        "thinning"
     ],
 )
 """
 A :func:`~collections.namedtuple` defining a Parallel Tempering sampler. It 
 consists of the fields:
 
- - **kernel** - jhfg.
- - **pt_state** - jhfg.
- - **n_rounds** - jhfg.
- - **n_refresh** - jhfg.
- - **model_args** - jhfg.
- - **model_kwargs** - jhfg.
- - **swap_group_actions** - jhfg.
- - **excluded_latent_vars** - jhfg.
+ - **kernel** - the exploration kernel.
+ - **pt_state** - an instance of :class:`PTState`.
+ - **n_rounds** - number of rounds to run.
+ - **n_refresh** - number of refreshments per exploration phase.
+ - **model_args** - optional model arguments.
+ - **model_kwargs** - optional model keyword arguments.
+ - **swap_group_actions** - permutations of the replica indexes proposed at
+     odd and even communication steps.
+ - **excluded_latent_vars** - a `frozenset` of latent variables to exclude when
+     storing samples.
+ - **thinning** - number of scans to skip when storing samples.
 """
 
 PTState = namedtuple(
@@ -57,12 +64,13 @@ PTState = namedtuple(
 A :func:`~collections.namedtuple` defining the state of a Parallel Tempering
 ensemble. It consists of the fields:
 
- - **replica_states** - jhfg.
- - **replica_to_chain_idx** - jhfg.
- - **chain_to_replica_idx** - jhfg.
- - **rng_key** - jhfg.
- - **stats** - jhfg.
- - **samples** - jhfg.
+ - **replica_states** - pytree of vectorized kernel states for each replica.
+ - **replica_to_chain_idx** - chain index assigned to a given replica.
+ - **chain_to_replica_idx** - replica index in charge of a given chain.
+ - **rng_key** - a JAX PRNG key.
+ - **stats** - an instance of :class:`statistics.PTStats`.
+ - **samples** - a pythree for holding latent variable samples if collection
+     is activated.
 """
 
 ###############################################################################
@@ -115,7 +123,7 @@ def validate_initial_replica_states(kernel, replica_states):
         replica_states, replica_states.base_precond_state
     )
 
-    # check everythin remains finite
+    # check everything remains finite
     valid_initial_states = jax.tree.all(
         jax.tree.map(
             lambda x: jnp.all(jnp.isfinite(x)), 
@@ -128,6 +136,15 @@ def validate_initial_replica_states(kernel, replica_states):
         raise RuntimeError(
             f"Found invalid initial replica states; dumping below\n{replica_states}"
         )
+    
+    # handle the case where the log likelihood term is int32(0), which occurs 
+    # when a numpyro model has no `obs` sample statements
+    if not jnp.issubdtype(replica_states.log_lik.dtype, jnp.floating):
+        raise ValueError(
+            "The model has no likelihood component so running Parallel " \
+            "Tempering is pointless (there is nothing to temper). Aborting."
+        )
+
     return replica_states
 
 def init_replica_states(
@@ -160,7 +177,6 @@ def init_schedule_log(replica_states, n_replicas):
     """
     Find a log2-linear schedule with the property that
     `beta[1]*initial_log_lik` is close to 0.
-
     """
     initial_log_liks = replica_states.log_lik
     log2_beta_1 = jnp.clip(
@@ -169,7 +185,7 @@ def init_schedule_log(replica_states, n_replicas):
         # don't go under the precision
         jnp.finfo(initial_log_liks.dtype).minexp,
         # don't go over the exponent we would get with linear schedule
-        -jnp.log2(n_replicas-1)
+        -jnp.log2(n_replicas-1).astype(initial_log_liks.dtype)
     )
     return jnp.insert(
         2**jnp.linspace(log2_beta_1, 0, n_replicas-2,False), 
@@ -178,7 +194,7 @@ def init_schedule_log(replica_states, n_replicas):
     )
 
 def init_schedule(replica_states, n_replicas, initial_schedule):
-    if isinstance(initial_schedule, jax.typing.ArrayLike):
+    if isinstance(initial_schedule, ArrayLike):
         assert (
             initial_schedule.shape == (n_replicas,) and
             initial_schedule[ 0] == 0 and 
@@ -206,7 +222,8 @@ def init_samples_container(
         model_args, 
         model_kwargs, 
         replica_states,
-        excluded_latent_vars
+        excluded_latent_vars,
+        thinning
     ):
     # grab a generic replica state
     constrained_sample_with_extras = sampling.extract_sample(
@@ -219,12 +236,11 @@ def init_samples_container(
     )
 
     # use the above as template to create container
-    n_stored_samples = sampling.n_scans_in_round(n_rounds)
+    n_stored_samples = sampling.n_scans_in_round(n_rounds) // thinning
     return jax.tree.map(
         lambda x: jnp.empty_like(
             x, 
             shape = (n_stored_samples, *x.shape),
-            # device = jax.devices('cpu')[0] # TODO: should we add option to do this?
         ),
         constrained_sample_with_extras
     )
@@ -259,6 +275,7 @@ def init_pt_state(
     stats = statistics.init_stats(n_replicas)
 
     # maybe build samples container
+    thinning = int(collect_samples)
     if collect_samples:
         samples = init_samples_container(
             kernel, 
@@ -266,12 +283,14 @@ def init_pt_state(
             model_args, 
             model_kwargs,
             replica_states,
-            excluded_latent_vars
+            excluded_latent_vars,
+            thinning
         )
     else: 
         samples = None
 
-    return PTState(
+    # build the state object
+    pt_state = PTState(
         replica_states, 
         replica_to_chain_idx, 
         chain_to_replica_idx, 
@@ -280,22 +299,50 @@ def init_pt_state(
         samples
     )
 
+    return pt_state, thinning
+
 
 def PT(
-        kernel, 
-        rng_key, 
-        n_replicas = 10, 
-        n_rounds = 10, 
-        n_refresh = 3,
-        init_params = None,
-        model_args = (), 
-        model_kwargs = {},
-        collect_samples = True,
-        initial_schedule = "log",
-        excluded_latent_vars = {}
-    ):
+        kernel: MCMCKernel, 
+        rng_key: ArrayLike, 
+        n_replicas: int = 10, 
+        n_rounds: int = 10, 
+        n_refresh: int = 3,
+        init_params: dict | None = None,
+        model_args: tuple = (), 
+        model_kwargs: dict = {},
+        collect_samples: bool | int = True,
+        initial_schedule: str | ArrayLike = "log",
+        excluded_latent_vars: Iterable = {}
+    ) -> PTSampler:
+    """
+    Initialize a :class:`PTSampler`.
+    
+    :param kernel: An MCMC sampler used as explorer.
+    :param rng_key: A JAX PRNG key.
+    :param n_replicas: Number of replicas to use.
+    :param n_rounds: Number of rounds to run.
+    :param n_refresh: Number of :func:`kernel.sample` calls to execute during
+        each exploration phase.
+    :param init_params: Optional initial parameters to initialize the replicas.
+        Must be given in unconstrained form.
+    :param model_args: Optional model arguments.
+    :param model_kwargs: Optional model keyword arguments
+    :param collect_samples: Whether to collect samples. If `int` and non-zero,
+        it is assumed to request thinning of the last round samples.  
+    :param initial_schedule: Settings for building the initial inverse 
+        temperature schedule. Can be a `str` equal to `'linear'` for linearly
+        spaced schedule or `'log'` for logarithmically spaced (default). It can
+        also be a vector of length `n_replicas` corresponding to a valid 
+        inverse temperature schedule.
+    :param excluded_latent_vars: Optional iterable of latent variables to
+        exclude when storing a sample. This is useful to keep GPU memory in
+        check by discarding nuisance variables that can be nonetheless massive
+        in terms of memory usage.
+    :return: An initialized :class:`PTSampler`.
+    """
     swap_group_actions = init_swap_group_actions(n_replicas)
-    pt_state = init_pt_state(
+    pt_state, thinning = init_pt_state(
         kernel, 
         rng_key, 
         n_replicas, 
@@ -315,5 +362,6 @@ def PT(
         model_args, 
         model_kwargs,
         swap_group_actions,
-        frozenset(excluded_latent_vars)
+        frozenset(excluded_latent_vars),
+        thinning
     )

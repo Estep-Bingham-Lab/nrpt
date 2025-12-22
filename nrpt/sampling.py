@@ -69,8 +69,15 @@ def store_sample(
         model_args, 
         model_kwargs, 
         excluded_latent_vars, 
-        pt_state
+        pt_state,
+        collection_idx
     ):
+    # jax.debug.print(
+    #     "saving sample: scan_idx={}, coll_idx={}",
+    #     pt_state.stats.scan_idx,
+    #     collection_idx,
+    #     ordered=True,
+    # )
     constrained_sample_with_extras = extract_sample(
         kernel, 
         model_args, 
@@ -79,9 +86,8 @@ def store_sample(
         pt_state.chain_to_replica_idx[-1], # get the state of the replica in charge of the target chain
         excluded_latent_vars
     )
-    scan_idx = pt_state.stats.scan_idx
     samples = jax.tree.map(
-        lambda x,y: x.at[scan_idx-1].set(y), # NB: scan_idx is 1-based 
+        lambda x,y: x.at[collection_idx-1].set(y), # NB: collection_idx is 1-based 
         pt_state.samples, 
         constrained_sample_with_extras
     )
@@ -93,16 +99,26 @@ def maybe_store_sample(
         model_kwargs, 
         pt_state, 
         n_rounds,
-        excluded_latent_vars
+        excluded_latent_vars,
+        thinning
     ):
-    # skip if we are not yet at the last round
+    # skip if we are not yet at the last round or if thinning
+    collection_idx, thinning_idx = jnp.divmod(pt_state.stats.scan_idx,thinning)
     return lax.cond(
-        n_rounds == pt_state.stats.round_idx,
-        partial(
-            store_sample, kernel, model_args, model_kwargs, excluded_latent_vars
+        jnp.logical_and(
+            n_rounds == pt_state.stats.round_idx,
+            thinning_idx == 0
         ),
-        util.identity,
-        pt_state
+        partial(
+            store_sample, 
+            kernel, 
+            model_args, 
+            model_kwargs, 
+            excluded_latent_vars
+        ),
+        util.identity, # note: this util returns only the first argument and discards anything else
+        pt_state, 
+        collection_idx
     )
 
 def print_summary_header():
@@ -186,7 +202,8 @@ def pt_scan(
         model_args, 
         model_kwargs,
         swap_group_actions,
-        excluded_latent_vars
+        excluded_latent_vars,
+        thinning
     ):
     """
     Run a full NRPT scan -- exploration + DEO communication -- and collect
@@ -222,7 +239,8 @@ def pt_scan(
             model_kwargs, 
             pt_state, 
             n_rounds,
-            excluded_latent_vars
+            excluded_latent_vars,
+            thinning
         )
     
     # stats update (in particular, the iterators) 
@@ -249,6 +267,9 @@ def pt_scan(
 def run(pt_sampler):
     """
     Run NRPT in (implicit) round-based mode.
+    
+    :param pt_sampler: a freshly initialized instance of :class:`PTSampler`.
+    :return: the post-run updated `pt_sampler`.
     """
     (
         kernel, 
@@ -258,8 +279,10 @@ def run(pt_sampler):
         model_args, 
         model_kwargs,
         swap_group_actions,
-        excluded_latent_vars
+        excluded_latent_vars,
+        thinning
     ) = pt_sampler
+
     # capture the starting time of the first round
     # note: `run` itself is not jitted so we can just directly call the timer
     pt_state._replace(
@@ -280,7 +303,8 @@ def run(pt_sampler):
                 model_args, 
                 model_kwargs,
                 swap_group_actions,
-                excluded_latent_vars
+                excluded_latent_vars,
+                thinning
             ),
             None
         ), 
