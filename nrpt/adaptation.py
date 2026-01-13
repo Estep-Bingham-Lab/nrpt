@@ -36,7 +36,9 @@ def adapt_schedule(pt_state):
     )
 
     # take log of schedule, then replace -inf with reasonably small number
-    log_tiny = jnp.finfo(result_dtype).minexp*jnp.log(2) # == log(jnp.finfo(jnp.float32).smallest_normal)    
+    # note: minexp is just a bit too small, resulting in very jumpy beta[1] 
+    # that fails to settle even after 10 rounds. Adding one to it solves that
+    log_tiny = (jnp.finfo(result_dtype).minexp+1)*jnp.log(2) # == jnp.log(2)+jnp.log(jnp.finfo(result_dtype).smallest_normal)
     log_adj_inv_temp_schedule = jnp.log(inv_temp_schedule).at[0].set(log_tiny)
 
     # find the equi-rejection schedule via interpolation
