@@ -1,5 +1,6 @@
 from collections import namedtuple
 from collections.abc import Iterable
+from typing import Optional
 
 import jax
 from jax import numpy as jnp
@@ -308,7 +309,7 @@ def PT(
         n_replicas: int = 10, 
         n_rounds: int = 10, 
         n_refresh: int = 3,
-        init_params: dict | None = None,
+        init_params: Optional[dict] = None,
         model_args: tuple = (), 
         model_kwargs: dict = {},
         collect_samples: bool | int = True,
