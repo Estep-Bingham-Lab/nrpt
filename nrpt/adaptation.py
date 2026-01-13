@@ -1,5 +1,4 @@
 from functools import partial
-from operator import itemgetter
 
 import jax
 from jax import numpy as jnp
@@ -36,9 +35,9 @@ def adapt_schedule(pt_state):
     )
 
     # take log of schedule, then replace -inf with reasonably small number
-    # note: minexp is just a bit too small, resulting in very jumpy beta[1] 
-    # that fails to settle even after 10 rounds. Adding one to it solves that
-    log_tiny = (jnp.finfo(result_dtype).minexp+1)*jnp.log(2) # == jnp.log(2)+jnp.log(jnp.finfo(result_dtype).smallest_normal)
+    # note: log(smallest_normal) is just a bit too small, resulting in very 
+    # jumpy beta[1] that fails to settle even after 10 rounds.
+    log_tiny = 0.8*jnp.finfo(result_dtype).minexp*jnp.log(2) # == 0.8*jnp.log(jnp.finfo(result_dtype).smallest_normal)
     log_adj_inv_temp_schedule = jnp.log(inv_temp_schedule).at[0].set(log_tiny)
 
     # find the equi-rejection schedule via interpolation

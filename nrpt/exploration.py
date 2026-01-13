@@ -1,4 +1,5 @@
 from functools import partial
+from operator import itemgetter
 
 import jax
 from jax import lax
@@ -27,9 +28,6 @@ def sample_iid_kernel_state(
         model_kwargs, 
         kernel_state
     ):
-    if not isinstance(kernel, automcmc.AutoMCMC):
-        return kernel_state
-
     # sample from the prior in unconstraiend space
     new_rng_key, iid_key = jax.random.split(kernel_state.rng_key)
     unconstrained_sample = sample_from_prior(
@@ -65,42 +63,45 @@ def loop_sample(kernel, n_refresh, model_args, model_kwargs, kernel_state):
         length=n_refresh
     )[0]
 
-def explore(
-        kernel, 
-        n_refresh, 
-        model_args, 
-        model_kwargs, 
-        kernel_state, 
-        chain_idx
-    ):
-    """
-    Sample iid from prior if sampling a proper model and replica is targeting 
-    the reference chain; otherwise, take `n_refresh` MCMC steps.
-    """
-    if kernel.model is None:
-        kernel_state = loop_sample(
-            kernel, n_refresh, model_args, model_kwargs, kernel_state
-        )
-    else:
-        kernel_state = lax.cond(
-            chain_idx == 0,
-            partial(sample_iid_kernel_state, kernel, model_args, model_kwargs),
-            partial(loop_sample, kernel, n_refresh, model_args, model_kwargs),
-            kernel_state
-        )
-        
-    return kernel_state
-
-
+# Note on implementation:
+# An alternative to the current approach would be to have a `cond`-based 
+# dispatcher at the chain level that sends the ref to iid sampling and all
+# others to loop sampling. The problem is that when that dispatcher is vmapped,
+# the `cond` is replaced with a `jnp.where` so both branches are executed for
+# all replicas. Whereas with the current approach, we only dispatch the loop
+# to all replicas, but the iid sampling is guaranteed to be carried out only
+# once, which cuts down on (expensive) target evaluations 
 def exploration_step(kernel, pt_state, n_refresh, model_args, model_kwargs):
     """
-    Exploration step vectorized over replicas.
+    Exploration step.
     """
+    # start by vmapping `loop_sample` over all replicas    
     vmap_explore = jax.vmap(
-        partial(explore, kernel, n_refresh, model_args, model_kwargs)
+        partial(loop_sample, kernel, n_refresh, model_args, model_kwargs)
     )
-    return pt_state._replace(
-        replica_states = vmap_explore(
-            pt_state.replica_states, pt_state.replica_to_chain_idx
+    replica_states = vmap_explore(pt_state.replica_states)
+
+    # if there is a model available, draw an iid sample from reference and
+    # update the state of the replica handling it
+    if kernel.model is not None:
+        # grab the state of the replica handling the reference
+        ref_replica_idx = pt_state.chain_to_replica_idx[0]
+        ref_replica_state = jax.tree.map(
+            itemgetter(ref_replica_idx), replica_states
         )
-    )
+
+        # draw the iid sample and update the corresponding replica state
+        ref_replica_state = sample_iid_kernel_state(
+            kernel,
+            model_args, 
+            model_kwargs, 
+            ref_replica_state
+        )
+        replica_states = jax.tree.map(
+            lambda col, x: col.at[ref_replica_idx].set(x),
+            replica_states,
+            ref_replica_state
+        )
+    
+    # update the pt state and return
+    return pt_state._replace(replica_states=replica_states) 
