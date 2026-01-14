@@ -123,11 +123,16 @@ def maybe_store_sample(
 
 def print_summary_header():
     jax.debug.print(
-        "  R |      Δt / ETA (s) |    Λ |      logZ | ρ (mean/max/amax) |    β₁ | α (min/mean) | AC (mean/max) \n" \
-        "------------------------------------------------------------------------------------------------------",
+        "  R |        Δt |       ETA |    Λ |      logZ | ρ (mean/max/amax) |    β₁ | α (min/mean) | AC (mean/max) \n" \
+        "----------------------------------------------------------------------------------------------------------",
         ordered=True
     )
     return
+
+def delta_sec_to_hhmmss(dt):
+    n_hours, dt = jnp.divmod(dt, 3600)
+    n_mins, n_secs = jnp.divmod(dt, 60)
+    return n_hours.astype(int), n_mins.astype(int), jnp.round(n_secs).astype(int)
 
 def print_round_summary(
         ending_round_idx, 
@@ -140,17 +145,22 @@ def print_round_summary(
     lax.cond(ending_round_idx == 1, print_summary_header, lambda: None)
 
     # print row
-    ETA = round_duration*total_scans(n_rounds-ending_round_idx) # using this because we need the same type of sum 2+4+8+...
+    rd_nh, rd_nm, rd_ns = delta_sec_to_hhmmss(round_duration)
+    eta = round_duration*total_scans(n_rounds-ending_round_idx) # using this because we need the same type of sum 2+4+8+...
+    eta_nh, eta_nm, eta_ns = delta_sec_to_hhmmss(eta)
     ll_ac1s = statistics.loglik_autocors(pt_state)
     replica_beta_1 = pt_state.chain_to_replica_idx[1]
     beta_1 = pt_state.replica_states.inv_temp[replica_beta_1]
     arg_max_rej = pt_state.stats.last_round_rej_probs.argmax()
     jax.debug.print(
-        " {i:>2}   {tt:.1e} / {et:.1e}   {b:4.1f}   {lZ: .2e}    {rm:.2f} / {rM:.2f} / {iM:>2}   {b1:.0e}    {am:.2f} / {aM:.2f}    {cm: .2f} /{cM: .2f}",
+        " {i:>2}   {rd_nh:>3}:{rd_nm:02d}:{rd_ns:02d}   " \
+        "{eta_nh:>3}:{eta_nm:02d}:{eta_ns:02d}   {b:4.1f}   {lZ: .2e}    " \
+        "{rm:.2f} / {rM:.2f} / {iM:>2}   {b1:.0e}    " \
+        "{am:.2f} / {aM:.2f}    {cm: .2f} /{cM: .2f}",
         ordered=True,
         i=ending_round_idx,
-        tt=round_duration,
-        et=ETA,
+        rd_nh=rd_nh, rd_nm=rd_nm, rd_ns=rd_ns,
+        eta_nh=eta_nh, eta_nm=eta_nm, eta_ns=eta_ns,
         b=total_barrier(pt_state.stats.barrier_fit),
         lZ=logZ_at_target(pt_state.stats.logZ_fit),
         rm=pt_state.stats.last_round_rej_probs.mean(),
