@@ -89,8 +89,8 @@ With the explorer in place, we can proceed to instantiate a `PTSampler` object
 pt_sampler = initialization.PT(
     kernel, 
     rng_key = random.key(1),
-    n_rounds = 15,
-    n_replicas = 12,
+    n_rounds = 14,
+    n_replicas = 15,
     n_refresh = 2,
     model_args=model_args, 
     model_kwargs=model_kwargs
@@ -100,38 +100,41 @@ Note that the model arguments are passed to the constructor. There are
 several other settings being provided:
 
 - A JAX PRNG key, used to draw (pseudo-)random variates.
-- The number of NRPT rounds is set to 15, so that a total of 
-$2^{15}$=32768 samples are returned.
-- The number of replicas is set to 12, which is roughly 2 times the global
-barrier $\Lambda$ of the problem.
+- The number of NRPT rounds is set to 14, so that a total of 
+$2^{15}$=16384 samples -- corresponding to the last round -- are returned.
+- The number of replicas is set to 15, which is roughly 2.5 times the global
+barrier $\Lambda$ of the problem. This is the ideal minimum number of chains
+needed for NRPT to correctly bootstrap itself via adaptation. The number of
+replicas can be increased past this point until either device memory is 
+exhausted or until significant speed deterioration is observed. Of course, 
+since $\Lambda$ is a priori unknown, setting `n_replicas` requires some iteration.
 - The number of explorer refreshments within each exploration step is set to 2.
 This allows us to achieve a worse-case autocorrelation of the log-likelihood 
 (across replicas) of less than 0.95.
 
-We can run NRPT typing (takes about 5 minutes on an Nvidia RTX 2000 Ada 
+We can run NRPT typing (takes less than 4 minutes on an Nvidia RTX 2000 Ada
 generation laptop GPU)
 ```python
 pt_sampler = sampling.run(pt_sampler)
 ```
 The above will produce an output similar to this
 ```
-  R |        Δt |       ETA |    Λ |      logZ | ρ (mean/max/amax) |    β₁ | α (min/mean) | AC (mean/max) 
+  R |        Δt |       ETA |    Λ |      logZ | ρ (mean/max/amax) | newβ₁ | α (min/mean) | AC (mean/max) 
 ----------------------------------------------------------------------------------------------------------
-  1     0:00:13   114:02:15    4.1   -8.40e+02    0.37 / 1.00 / 10   1e-12    0.25 / 0.60     nan / nan
-  2     0:00:00     0:17:04    3.7   -6.86e+02    0.34 / 0.56 /  1   5e-05    0.44 / 0.66     0.60 / 1.03
-  3     0:00:00     0:19:28    6.1   -1.86e+03    0.56 / 1.00 / 10   5e-05    0.28 / 0.55     0.72 / 1.00
-  4     0:00:00     0:09:44    6.8   -5.67e+02    0.62 / 1.00 /  5   1e-04    0.25 / 0.60     0.67 / 1.33
-  5     0:00:00     0:06:36    7.0   -4.47e+02    0.63 / 0.99 /  7   2e-05    0.44 / 0.72     0.66 / 0.93
-  6     0:00:00     0:07:19    5.6   -3.84e+02    0.51 / 1.00 /  2   7e-07    0.40 / 0.77     0.72 / 0.95
-  7     0:00:01     0:07:02    5.4   -3.69e+02    0.49 / 0.94 /  3   3e-07    0.51 / 0.85     0.73 / 0.92
-  8     0:00:01     0:05:38    5.7   -3.69e+02    0.52 / 0.81 /  3   8e-07    0.53 / 0.83     0.65 / 0.92
-  9     0:00:03     0:05:18    6.0   -3.69e+02    0.55 / 0.72 /  4   2e-06    0.62 / 0.83     0.70 / 0.90
- 10     0:00:05     0:05:02    6.0   -3.70e+02    0.54 / 0.61 / 10   3e-06    0.63 / 0.86     0.72 / 0.91
- 11     0:00:10     0:05:04    6.0   -3.70e+02    0.54 / 0.59 /  3   3e-06    0.72 / 0.84     0.69 / 0.93
- 12     0:00:19     0:04:20    5.9   -3.71e+02    0.54 / 0.58 /  6   3e-06    0.75 / 0.88     0.73 / 0.91
- 13     0:00:37     0:03:40    5.9   -3.70e+02    0.54 / 0.58 /  3   3e-06    0.76 / 0.89     0.71 / 0.92
- 14     0:01:13     0:02:26    5.9   -3.70e+02    0.53 / 0.56 /  4   3e-06    0.79 / 0.90     0.70 / 0.92
- 15     0:02:25     0:00:00    5.9   -3.70e+02    0.54 / 0.56 /  9   3e-06    0.80 / 0.90     0.71 / 0.92
+  1     0:00:13    58:38:30    3.9   -8.56e+02    0.28 / 0.92 / 12   2e-06    0.00 / 0.45    -0.30 / 1.33
+  2     0:00:00     0:07:04    3.4   -8.13e+02    0.24 / 0.50 / 10   2e-07    0.31 / 0.57     0.50 / 1.14
+  3     0:00:00     0:07:32    5.3   -7.23e+02    0.38 / 0.87 / 13   9e-07    0.37 / 0.61     0.58 / 2.50
+  4     0:00:00     0:05:56    7.0   -5.15e+02    0.50 / 0.93 / 13   1e-06    0.43 / 0.62     0.65 / 1.01
+  5     0:00:00     0:04:33    6.5   -3.93e+02    0.46 / 1.00 /  4   2e-07    0.53 / 0.74     0.65 / 0.99
+  6     0:00:01     0:04:16    5.6   -3.71e+02    0.40 / 1.00 /  4   2e-07    0.51 / 0.79     0.49 / 0.85
+  7     0:00:01     0:03:08    5.7   -3.68e+02    0.40 / 0.83 /  5   3e-07    0.62 / 0.84     0.55 / 0.90
+  8     0:00:02     0:03:33    6.4   -3.70e+02    0.45 / 0.68 /  9   7e-07    0.69 / 0.87     0.69 / 0.93
+  9     0:00:03     0:03:18    6.2   -3.71e+02    0.44 / 0.58 / 13   3e-07    0.73 / 0.86     0.67 / 0.94
+ 10     0:00:07     0:03:15    6.2   -3.70e+02    0.44 / 0.50 /  8   5e-07    0.59 / 0.88     0.70 / 0.92
+ 11     0:00:13     0:02:57    6.1   -3.70e+02    0.44 / 0.49 /  4   5e-07    0.65 / 0.88     0.68 / 0.92
+ 12     0:00:25     0:02:33    6.1   -3.70e+02    0.44 / 0.49 /  8   3e-07    0.73 / 0.85     0.68 / 0.93
+ 13     0:00:53     0:01:46    6.2   -3.70e+02    0.44 / 0.47 /  4   3e-07    0.68 / 0.84     0.69 / 0.92
+ 14     0:01:39     0:00:00    6.2   -3.70e+02    0.44 / 0.46 / 13   4e-07    0.73 / 0.85     0.68 / 0.92
 ```
 From left to right, the figures shown here correspond to:
 
@@ -146,16 +149,12 @@ $\Lambda \approx 5.9$.
 $\log(\mathcal{Z})\approx -370$.
 - Average and worst-case swap rejection probabilities. When the average is
 close to the maximum -- as in the last 6 rounds -- the ideal *equi-rejection*
-condition has been approximately attained. Note that the mean rejection rate
-is ~50%. This is intentional, as we chose `n_replicas=12` roughly equal to twice
-the value of $\Lambda$ (which we knew from previous runs). This is the optimal
-recommended number of chains in Syed et al. (2022).
+condition has been approximately attained.
 - The `amax` field in the previous column indicates the chain index that 
 shows the highest rejection probability. That is, when
 `amax=i`, it means that the swap between chains `i` and `i+1` shows the highest
-rejection rate. The next column shows the value of the first non-zero inverse 
-temperature. This helps with diagnosing high rejection rates for `amax=0`, 
-which is the most common index having the highest rejection probability.
+rejection rate. The next column shows the updated value of the first non-zero 
+inverse temperature. This helps with diagnosing high rejection rates for `amax=0`.
 - Average and worst-case explorer acceptance probabilities. If the explorer is
 working correctly along the path of distributions, we expect both values
 to be away from 0 and 1.
@@ -173,19 +172,19 @@ print_summary(samples, group_by_chain=False)
 ```
 ```
                  mean       std    median      5.0%     95.0%     n_eff     r_hat
-      lbeta     -1.63      1.06     -0.83     -2.93     -0.66    204.03      1.00
-     ldelta     -1.77      1.11     -2.00     -3.05     -0.66    230.98      1.00
-       lkm0      1.08      0.02      1.09      1.05      1.12    229.86      1.00
-  log_joint   -320.42     70.28   -358.47   -363.47   -192.99  11613.99      1.00
-    log_lik   -349.75      1.71   -349.48   -352.20   -347.17    475.67      1.00
-  log_prior     -7.73      0.59     -7.54     -8.21     -7.35    302.37      1.00
-     lsigma      0.40      0.03      0.39      0.35      0.44    285.60      1.00
-        lt0      0.18      0.03      0.18      0.14      0.23    270.02      1.01
+      lbeta     -1.62      1.00     -0.83     -2.84     -0.66    124.78      1.01
+     ldelta     -1.72      1.03     -1.98     -2.93     -0.66    157.17      1.01
+       lkm0      1.09      0.02      1.09      1.05      1.12    330.02      1.00
+  log_joint   -321.63     62.92   -358.18   -362.93   -215.18  10345.67      1.00
+    log_lik   -349.65      1.74   -349.36   -352.21   -347.06    504.32      1.00
+  log_prior     -7.66      0.45     -7.54     -7.95     -7.35    496.94      1.00
+     lsigma      0.40      0.02      0.39      0.35      0.43    256.75      1.01
+        lt0      0.18      0.03      0.18      0.14      0.23    460.65      1.00
 ```
 The summary includes the model parameters as well as the log prior, log likelihood,
 and log joint---corresponding to log posterior plus the log density
 of the momentum. For all these quantities, we see effective sample sizes (`n_eff`)
-of over 200, together with $\hat R$ diagnostics close to 1. This indicates
+of over 100, together with $\hat R$ diagnostics close to 1. This indicates
 successfull exploration of the posterior distribution.
 
 Finally, we can recreate the corner plot in Ballnus et al. (2017) using
@@ -225,6 +224,8 @@ of these two modes are completely different. Moreover, there is a clear
 ridge visible in the $(\log_{10}(\beta),\log_{10}(\delta))$ plot. These 
 features make this problem extremely hard to tackle using traditional 
 MCMC algorithms.
+
+
 
 
 ## References

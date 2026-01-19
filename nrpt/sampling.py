@@ -123,7 +123,7 @@ def maybe_store_sample(
 
 def print_summary_header():
     jax.debug.print(
-        "  R |        Δt |       ETA |    Λ |      logZ | ρ (mean/max/amax) |    β₁ | α (min/mean) | AC (mean/max) \n" \
+        "  R |        Δt |       ETA |    Λ |      logZ | ρ (mean/max/amax) | newβ₁ | α (min/mean) | AC (mean/max) \n" \
         "----------------------------------------------------------------------------------------------------------",
         ordered=True
     )
