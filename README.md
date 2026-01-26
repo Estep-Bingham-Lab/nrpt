@@ -121,20 +121,20 @@ The above will produce an output similar to this
 ```
   R |        Δt |       ETA |    Λ |      logZ | ρ (mean/max/amax) | newβ₁ | α (min/mean) | AC (mean/max) 
 ----------------------------------------------------------------------------------------------------------
-  1     0:00:13    58:38:30    3.9   -8.56e+02    0.28 / 0.92 / 12   2e-06    0.00 / 0.45    -0.30 / 1.33
-  2     0:00:00     0:07:04    3.4   -8.13e+02    0.24 / 0.50 / 10   2e-07    0.31 / 0.57     0.50 / 1.14
-  3     0:00:00     0:07:32    5.3   -7.23e+02    0.38 / 0.87 / 13   9e-07    0.37 / 0.61     0.58 / 2.50
-  4     0:00:00     0:05:56    7.0   -5.15e+02    0.50 / 0.93 / 13   1e-06    0.43 / 0.62     0.65 / 1.01
-  5     0:00:00     0:04:33    6.5   -3.93e+02    0.46 / 1.00 /  4   2e-07    0.53 / 0.74     0.65 / 0.99
-  6     0:00:01     0:04:16    5.6   -3.71e+02    0.40 / 1.00 /  4   2e-07    0.51 / 0.79     0.49 / 0.85
-  7     0:00:01     0:03:08    5.7   -3.68e+02    0.40 / 0.83 /  5   3e-07    0.62 / 0.84     0.55 / 0.90
-  8     0:00:02     0:03:33    6.4   -3.70e+02    0.45 / 0.68 /  9   7e-07    0.69 / 0.87     0.69 / 0.93
-  9     0:00:03     0:03:18    6.2   -3.71e+02    0.44 / 0.58 / 13   3e-07    0.73 / 0.86     0.67 / 0.94
- 10     0:00:07     0:03:15    6.2   -3.70e+02    0.44 / 0.50 /  8   5e-07    0.59 / 0.88     0.70 / 0.92
- 11     0:00:13     0:02:57    6.1   -3.70e+02    0.44 / 0.49 /  4   5e-07    0.65 / 0.88     0.68 / 0.92
- 12     0:00:25     0:02:33    6.1   -3.70e+02    0.44 / 0.49 /  8   3e-07    0.73 / 0.85     0.68 / 0.93
- 13     0:00:53     0:01:46    6.2   -3.70e+02    0.44 / 0.47 /  4   3e-07    0.68 / 0.84     0.69 / 0.92
- 14     0:01:39     0:00:00    6.2   -3.70e+02    0.44 / 0.46 / 13   4e-07    0.73 / 0.85     0.68 / 0.92
+  1     0:00:13    60:35:01    3.9   -8.56e+02    0.28 / 0.92 / 12   1e-19    0.00 / 0.45    -0.30 / 1.33
+  2     0:00:00     0:08:24    3.9   -8.06e+02    0.28 / 0.75 /  2   1e-09    0.34 / 0.58     0.40 / 1.08
+  3     0:00:00     0:08:04    6.2   -6.78e+02    0.44 / 0.74 /  9   3e-07    0.25 / 0.54     0.95 / 2.53
+  4     0:00:00     0:05:09    6.7   -5.31e+02    0.48 / 0.78 /  5   3e-05    0.34 / 0.61     0.63 / 0.98
+  5     0:00:00     0:04:18    6.8   -4.22e+02    0.49 / 0.88 /  5   8e-08    0.60 / 0.77     0.62 / 0.97
+  6     0:00:01     0:05:19    5.6   -3.87e+02    0.40 / 0.91 /  2   1e-09    0.50 / 0.81     0.67 / 1.00
+  7     0:00:01     0:03:60    5.7   -3.72e+02    0.41 / 0.97 /  4   1e-06    0.46 / 0.82     0.69 / 0.95
+  8     0:00:02     0:03:22    6.1   -3.68e+02    0.43 / 0.94 /  4   4e-07    0.55 / 0.81     0.66 / 0.94
+  9     0:00:04     0:03:42    6.1   -3.69e+02    0.44 / 0.61 /  6   1e-06    0.55 / 0.86     0.68 / 0.94
+ 10     0:00:07     0:03:16    6.1   -3.70e+02    0.44 / 0.55 /  6   1e-07    0.57 / 0.87     0.68 / 0.93
+ 11     0:00:16     0:03:43    6.1   -3.70e+02    0.44 / 0.51 /  1   5e-07    0.52 / 0.85     0.71 / 0.92
+ 12     0:00:27     0:02:40    6.2   -3.70e+02    0.44 / 0.47 /  9   3e-07    0.57 / 0.87     0.71 / 0.93
+ 13     0:00:54     0:01:48    6.2   -3.71e+02    0.44 / 0.47 / 10   4e-07    0.58 / 0.87     0.70 / 0.92
+ 14     0:01:41     0:00:00    6.2   -3.70e+02    0.44 / 0.46 /  4   4e-07    0.66 / 0.87     0.69 / 0.93
 ```
 From left to right, the figures shown here correspond to:
 
@@ -142,13 +142,13 @@ From left to right, the figures shown here correspond to:
 - The duration of the round
 - The estimated time until sampling is completed. Note that this is very 
 inaccurate in the earlier rounds. It begins to stabilize roughly after round 7,
-depending on the complexity of the target   
+depending on the complexity of the target.
 - Estimate of the global barrier, which at the last round is 
-$\Lambda \approx 5.9$. 
+$\Lambda \approx 6.2$. 
 - Estimate of the log-normalization constant, which in the last round gives
 $\log(\mathcal{Z})\approx -370$.
 - Average and worst-case swap rejection probabilities. When the average is
-close to the maximum -- as in the last 6 rounds -- the ideal *equi-rejection*
+close to the maximum -- as in the last 3 rounds -- the ideal *equi-rejection*
 condition has been approximately attained.
 - The `amax` field in the previous column indicates the chain index that 
 shows the highest rejection probability. That is, when
@@ -172,14 +172,14 @@ print_summary(samples, group_by_chain=False)
 ```
 ```
                  mean       std    median      5.0%     95.0%     n_eff     r_hat
-      lbeta     -1.62      1.00     -0.83     -2.84     -0.66    124.78      1.01
-     ldelta     -1.72      1.03     -1.98     -2.93     -0.66    157.17      1.01
-       lkm0      1.09      0.02      1.09      1.05      1.12    330.02      1.00
-  log_joint   -321.63     62.92   -358.18   -362.93   -215.18  10345.67      1.00
-    log_lik   -349.65      1.74   -349.36   -352.21   -347.06    504.32      1.00
-  log_prior     -7.66      0.45     -7.54     -7.95     -7.35    496.94      1.00
-     lsigma      0.40      0.02      0.39      0.35      0.43    256.75      1.01
-        lt0      0.18      0.03      0.18      0.14      0.23    460.65      1.00
+      lbeta     -1.79      1.07     -2.05     -2.98     -0.66    138.57      1.00
+     ldelta     -1.57      1.02     -0.81     -2.75     -0.65    191.20      1.00
+       lkm0      1.08      0.02      1.08      1.05      1.12    126.16      1.02
+  log_joint   -321.94     61.61   -358.13   -362.92   -218.77  13799.25      1.00
+    log_lik   -349.63      1.73   -349.32   -352.09   -347.00    284.18      1.00
+  log_prior     -7.70      0.56     -7.53     -8.12     -7.37    238.94      1.00
+     lsigma      0.40      0.02      0.39      0.35      0.43    239.19      1.00
+        lt0      0.18      0.03      0.18      0.13      0.23    142.11      1.02
 ```
 The summary includes the model parameters as well as the log prior, log likelihood,
 and log joint---corresponding to log posterior plus the log density
