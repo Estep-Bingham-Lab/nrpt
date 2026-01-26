@@ -35,13 +35,14 @@ def adapt_schedule(pt_state):
     )
 
     # do interpolation in log(beta) space
-    # reasoning: can reach beta[1]~0 faster than via linear interp
+    # reasoning: can reach beta[1]~0 faster than via linear interp, which
+    # empirically seems to only be able to at most halve beta[1]
     # idea: take log of schedule, then replace -inf with reasonably small value
-    # we choose this so that beta[1] can decrease at most by 10^4
-    log_inv_temp_schedule = jnp.log(inv_temp_schedule)
-    log_inv_temp_schedule = log_inv_temp_schedule.at[0].set(
-        log_inv_temp_schedule[1] - 4*jnp.log(10)
-    )
+    # we use log(smallest_normal) which is small but still far from the region 
+    # where exp breaks down---i.e., where exp(x) == 0 (smallest_subnormal is too
+    # close to this region)
+    log_tiny = jnp.finfo(result_dtype).minexp*jnp.log(2) # == log(jnp.finfo(jnp.float32).smallest_normal)    
+    log_inv_temp_schedule = jnp.log(inv_temp_schedule).at[0].set(log_tiny)
 
     # find the equi-rejection schedule via interpolation
     # 1) fit: P(norm-cumulative_barrier) = log(schedule) (with P monotonic)
