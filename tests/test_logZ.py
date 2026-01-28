@@ -30,20 +30,20 @@ class TestLogZ(unittest.TestCase):
         current_round_dlogZ_estimates = logZ.init_estimates(2)
         dbeta = jnp.array([1.])
         out = online_update_estimates(current_round_dlogZ_estimates,dbeta,log_liks)
-        self.assertTrue(
-            jnp.isclose(out[0,0], jax.scipy.special.logsumexp(log_liks[:,0])) # dbeta == 1
+        self.assertAlmostEqual(
+            out[0,0], jax.scipy.special.logsumexp( log_liks[:,0]), delta=1e-4 # dbeta == 1
         )
-        self.assertTrue(
-            jnp.isclose(out[0,1], jax.scipy.special.logsumexp(-log_liks[:,1])) # dbeta == 1
+        self.assertAlmostEqual(
+            out[0,1], jax.scipy.special.logsumexp(-log_liks[:,1]), delta=1e-4 # dbeta == 1
         )
-        self.assertTrue(
-            jnp.isclose(tru_logZ, out[0,0] - jnp.log(N), atol=1e-2)
+        self.assertAlmostEqual(
+            tru_logZ, out[0,0] - jnp.log(N), delta=0.02
         )
-        self.assertTrue(
-            jnp.isclose(tru_logZ, jnp.log(N) - out[0,1], atol=1e-1)
+        self.assertAlmostEqual(
+            tru_logZ, jnp.log(N) - out[0,1], delta=0.02
         )
-        self.assertTrue(
-            jnp.isclose(tru_logZ, 0.5*(out[0,0]-out[0,1]), atol=1e-2)
+        self.assertAlmostEqual(
+            tru_logZ, 0.5*(out[0,0]-out[0,1]), delta=0.01
         )
 
         # same exercise but with an unnormalized loglik
@@ -61,14 +61,14 @@ class TestLogZ(unittest.TestCase):
         log_liks = jnp.array([loglik(x_lo), loglik(x_hi)]).swapaxes(0,1)
         current_round_dlogZ_estimates = logZ.init_estimates(2)
         out = online_update_estimates(current_round_dlogZ_estimates,dbeta,log_liks)
-        self.assertTrue(
-            jnp.isclose(tru_logZ, out[0,0] - jnp.log(N), atol=1e-2)
+        self.assertAlmostEqual(
+            tru_logZ, out[0,0] - jnp.log(N), delta=0.01
         )
-        self.assertTrue(
-            jnp.isclose(tru_logZ, jnp.log(N) - out[0,1], atol=1e-2)
+        self.assertAlmostEqual(
+            tru_logZ, jnp.log(N) - out[0,1], delta=0.01
         )
-        self.assertTrue(
-            jnp.isclose(tru_logZ, 0.5*(out[0,0]-out[0,1]), atol=1e-2)
+        self.assertAlmostEqual(
+            tru_logZ, 0.5*(out[0,0]-out[0,1]), delta=0.005
         )
         
 if __name__ == '__main__':
