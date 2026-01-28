@@ -1,6 +1,7 @@
 from collections import namedtuple
 from collections.abc import Iterable
 from typing import Optional
+import warnings
 
 import jax
 from jax import numpy as jnp
@@ -141,9 +142,9 @@ def validate_initial_replica_states(kernel, replica_states):
     # handle the case where the log likelihood term is int32(0), which occurs 
     # when a numpyro model has no `obs` sample statements
     if not jnp.issubdtype(replica_states.log_lik.dtype, jnp.floating):
-        raise ValueError(
-            "The model has no likelihood component so running Parallel " \
-            "Tempering is pointless (there is nothing to temper). Aborting."
+        warnings.warn(
+            "The model may not have a likelihood component so running Parallel " \
+            "Tempering may be pointless (there is nothing to temper)."
         )
 
     return replica_states
@@ -179,14 +180,13 @@ def init_schedule_log(replica_states, n_replicas):
     Find a log2-linear schedule with the property that
     `beta[1]*initial_log_lik` is close to 0.
     """
-    initial_log_liks = replica_states.log_lik
     log2_beta_1 = jnp.clip(
-        # aim for beta1 ~ max_i(|loglik_i|)
-        -jnp.log2(jnp.abs(initial_log_liks).max()),
+        # aim for beta1 ~ [max_i(|loglik_i|)]^{-1}
+        -jnp.log2(jnp.abs(replica_states.log_lik).max()),
         # don't go under the precision
-        jnp.finfo(initial_log_liks.dtype).minexp,
+        jnp.finfo(replica_states.log_prior.dtype).minexp,
         # don't go over the exponent we would get with linear schedule
-        -jnp.log2(n_replicas-1).astype(initial_log_liks.dtype)
+        -jnp.log2(n_replicas-1).astype(replica_states.log_prior.dtype)
     )
     return jnp.insert(
         2**jnp.linspace(log2_beta_1, 0, n_replicas-2,False), 
