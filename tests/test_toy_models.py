@@ -4,9 +4,14 @@ from functools import partial
 
 import math
 
+from scipy import stats
+
 import jax
 from jax import random
 from jax import numpy as jnp
+
+import numpyro
+import numpyro.distributions as dist
 
 from automcmc import autohmc, tempering
 
@@ -15,6 +20,24 @@ from nrpt import initialization, sampling, statistics, toy_examples, utils
 from tests import utils as testutils
 
 class TestToyExamples(unittest.TestCase):
+
+    def test_no_likelihood(self):
+        def normal():
+            return numpyro.sample('mu', dist.Normal())
+
+        kernel = autohmc.AutoMALA(normal)
+        with self.assertWarns(Warning):
+            pt = initialization.PT(kernel, random.key(564), n_replicas=3)
+        pt = sampling.run(pt)
+        self.assertTrue(jnp.allclose(
+            pt.pt_state.replica_states.inv_temp[pt.pt_state.chain_to_replica_idx],
+            jnp.linspace(0,1,3)
+        ))
+        self.assertGreater(
+            stats.ks_1samp(pt.pt_state.samples['mu'], stats.norm.cdf).pvalue, 
+            0.01
+        )
+
 
     def test_toy_examples(self):
         rng_key = random.key(123)

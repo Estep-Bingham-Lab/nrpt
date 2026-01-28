@@ -92,7 +92,7 @@ def sanitize_log_liks(kernel, chain_log_liks):
     """
     # don't do anything if iid sampling is not available; we don't want to mask
     # other types of errors
-    if kernel.model is None:
+    if kernel.model is None or not jnp.issubdtype(chain_log_liks,jnp.floating):
         return chain_log_liks
     
     # set the log lik at the reference to a very negative val if it isn't finite
