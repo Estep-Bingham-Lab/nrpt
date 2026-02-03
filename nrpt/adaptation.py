@@ -89,43 +89,5 @@ def adapt_explorers(kernel, pt_state, old_inv_temp_schedule):
         pt_state.replica_states
     )
 
-    # At this point, `replica_states.base_step_size` is tuned for the old
-    # inverse temp schedule. So we aim to predict the correct step size
-    # for the new schedule using interpolation
-    chain_to_replica_idx = pt_state.chain_to_replica_idx
-    replica_to_chain_idx = pt_state.replica_to_chain_idx
-    new_inv_temp_schedule = replica_states.inv_temp[chain_to_replica_idx]
-    new_step_sizes = replica_states.base_step_size[chain_to_replica_idx]
-    new_step_sizes = jax.lax.cond(
-        new_step_sizes[0] == 0, # happens when we sample from the prior at chain=0 instead of using MCMC 
-        lambda x: x.at[0].set(new_step_sizes[1]),
-        util.identity,
-        new_step_sizes
-    )
-    old_chain_to_new_step_map = interpolation.build_akima_interpolator(
-        old_inv_temp_schedule, jnp.log(new_step_sizes)
-    )
-    predicted_step_sizes = jnp.exp(interpolation.interpolate(
-        old_chain_to_new_step_map, new_inv_temp_schedule
-    ))
-
-    # fix any invalid predicted values and clamp to range
-    predicted_step_sizes = jnp.clip(
-        jnp.where(
-            jnp.logical_or(
-                jnp.logical_not(jnp.isfinite(predicted_step_sizes)),
-                predicted_step_sizes <= 0
-            ),
-            new_step_sizes,
-            predicted_step_sizes
-        ),
-        new_step_sizes.min(), new_step_sizes.max()
-    )
-    
-    # save to replica states
-    replica_states = replica_states._replace(
-        base_step_size = predicted_step_sizes[replica_to_chain_idx]
-    )
-
     # update pt_state with the new replica states and return
     return pt_state._replace(replica_states = replica_states)
