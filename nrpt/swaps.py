@@ -104,22 +104,69 @@ def sanitize_log_liks(kernel, chain_log_liks):
     )
 
 # Communication step
-#  
-# acc prob of swapping 2 states is proportional to ratio
+# 
+# NOTE: we must be careful with MCMC kernels that have auxiliary variables
+# whose distributions are adapted to each tempered target, as this creates
+# an implicit dependency of the kinetic energy on the inverse temperature.
+# In order to use the standard acceptance probability, we must assume either
+#   
+#   1. No such tempering-specific adaptation takes place, or 
+#   2. The kinetic energy does not depend on x (i.e., no Riemannian stuff) 
+#      AND the auxiliary variable is iid refreshed at each exploration step
+#    
+# Two theoretical justifications make these two cases give the same acc prob
+# formula
+#
+#   1. Swap affects both (x,p); equivalently, only beta, so that
+#      x doesn't have to move
+#   2. Swap affects only x; equivalently, both (p,beta), so that
+#      x doesn't have to move. And since p is iid refreshed in the next 
+#      exploration, we in practice also don't move p.
+#
+# Forcing x to stay in place in either case means that the `log_prior` and
+# `log_lik` caches stay valid after the communication step. 
+#
+# Derivation of the formula: in either case, the acceptance ratio is given by
+#
 #   acc ratio = Pi(with-swap)/Pi(no-swap)
-# with
-#   Pi(no-swap) = exp(Tempered-Log-Joint(xi, pi, beta_i) + Tempered-Log-Joint(xi+1, pi+1, beta_i+1)])  
-#     \propto exp(-[V0(xi)+beta_iV(xi)+K(pi)] -[V0(xi+1)+beta_i+1V(xi+1)+K(pi+1)])
+#
+# where Pi is the stationary distribution of the ensemble (product of individual
+# stationary distributions), so that
+#   
+# It suffices to focus on a single pair swap, since these are carried out 
+# independently. Hence
+#
+#   Pi(no-swap) = exp(Tempered-Log-Joint(xi, pi, beta_i) + Tempered-Log-Joint(xi+1, pi+1, beta_i+1)])
+#
+# CASE 1: only beta swaps, and the kinetic energy does not depend on beta; hence,
+#
+#   Pi(no-swap) \propto exp(-[V0(xi)+beta_iV(xi)+K(xi,pi)] -[V0(xi+1)+beta_i+1V(xi+1)+K(xi+1,pi+1)])
 #   Pi(with-swap) = exp(Tempered-Log-Joint(xi, pi, beta_i+1) + Tempered-Log-Joint(xi+1, pi+1, beta_i)])
-#     \propto exp(-[V0(xi)+beta_i+1V(xi)+K(pi)] -[V0(xi+1)+beta_iV(xi+1)+K(pi+1)])
-# So
+#         \propto exp(-[V0(xi)+beta_i+1V(xi)+K(xi,pi)] -[V0(xi+1)+beta_iV(xi+1)+K(xi+1,pi+1)])
+#
+# Canceling terms
+#
 #   acc ratio = exp(-[beta_i+1V(xi)] -[beta_iV(xi+1)] + [beta_iV(xi)] +[beta_i+1V(xi+1)])
 #    = exp([beta_i+1 - beta_i][V(xi+1)-V(xi)])
 #    = exp(-[beta_i+1 - beta_i][LL(xi+1)-LL(xi)])
-# where LL=-V is the loglik.
-# Intuition: distributions with higher beta favor higher LL values. Therefore,
-# a swap happens w.p. 1 if the lower-beta replica has a higher-LL sample. This
-# is a more "satisfactory" arrangement for the ensemble.
+#
+# where LL=-V is the loglik. This is the usual formula.
+#
+# CASE 2: swap both (p,beta) and the kinetic energy does not depend on x; hence,
+#
+#   Pi(no-swap) \propto exp(-[V0(xi)+beta_iV(xi)+K(pi, beta_i)] -[V0(xi+1)+beta_i+1V(xi+1)+K(pi+1, beta_i+1)])
+#   Pi(with-swap) = exp(Tempered-Log-Joint(x_i, pi+1, beta_i+1) + Tempered-Log-Joint(xi+1, pi, beta_i)])
+#         \propto exp(-[V0(xi)+beta_i+1V(xi)+K(pi+1,beta_i+1)] -[V0(xi+1)+beta_iV(xi+1)+K(pi,beta_i)])
+#
+# Canceling terms gives
+#
+#   acc ratio = exp(-[beta_i+1V(xi)] -[beta_iV(xi+1)] + [beta_iV(xi)] +[beta_i+1V(xi+1)])
+#
+# which is the same as above and we're done. 
+#
+# Intuition for the formula: distributions with higher beta favor higher LL 
+# values. Therefore, a swap happens w.p. 1 if the lower-beta replica has a 
+# higher-LL sample. This is a more "satisfactory" arrangement for the ensemble.
 # Also: if U~Unif[0,1], then
 #   U < ratio <=> E := -logU = > -log(ratio) =: nlaccr
 # where E ~ Exp(1). Finally, the rejection probability can be computed as

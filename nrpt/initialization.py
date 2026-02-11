@@ -121,6 +121,11 @@ def validate_initial_replica_states(kernel, replica_states):
         return replica_states
 
     # compute log joint at the initial point
+    # NOTE: this is not so kosher because it uses the base precond state, which
+    # is not the proper approach (must create a proper precond state via 
+    # `maybe_alter_precond_state`). However, this only happens once in the 
+    # entire run, so it doesn't have any persistent effect. Moreover, it doesnt
+    # have *any* effect for the FixedDense and FixedDiagonal precs.
     replica_states = jax.vmap(kernel.update_log_joint)(
         replica_states, replica_states.base_precond_state
     )

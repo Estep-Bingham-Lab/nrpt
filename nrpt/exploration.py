@@ -28,21 +28,32 @@ def sample_iid_kernel_state(
         model_kwargs, 
         kernel_state
     ):
-    # sample from the prior in unconstraiend space
-    new_rng_key, iid_key = jax.random.split(kernel_state.rng_key)
-    unconstrained_sample = sample_from_prior(
-        kernel.model, model_args, model_kwargs, iid_key
+    # make PRNG keys
+    new_rng_key, x_key, precond_key, aux_key = jax.random.split(
+        kernel_state.rng_key, 4
     )
 
-    # store sample
+    # sample x from the prior in unconstrained space, then store along with
+    # the updated master PRNG key
+    unconstrained_sample = sample_from_prior(
+        kernel.model, model_args, model_kwargs, x_key
+    )
     kernel_state = kernel_state._replace(
-        rng_key=new_rng_key, **{kernel.sample_field: unconstrained_sample}
+        rng_key=new_rng_key, 
+        **{kernel.sample_field: unconstrained_sample}
+    )
+
+    # To match the behavior of MCMC exploration, we must also refresh the
+    # auxiliary variable (and thus also possibly the preconditioner)
+    precond_state = kernel.preconditioner.maybe_alter_precond_state(
+        kernel_state.base_precond_state, precond_key
+    )
+    kernel_state = kernel.refresh_aux_vars(
+        aux_key, kernel_state, precond_state
     )
 
     # update logprobs and return
-    return kernel.update_log_joint(
-        kernel_state, kernel_state.base_precond_state
-    )
+    return kernel.update_log_joint(kernel_state, precond_state)
 
 # sequentially sample multiple times, discard intermediate states
 def loop_sample(kernel, n_refresh, model_args, model_kwargs, kernel_state):
