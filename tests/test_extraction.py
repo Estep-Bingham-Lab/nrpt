@@ -60,13 +60,13 @@ class TestExtraction(unittest.TestCase):
                 sampling.n_scans_in_round(pt_sampler.n_rounds) // pt_sampler.thinning
             )
             pt_sampler = sampling.run(pt_sampler)
-            if divmod(max_thinning, thinning)[-1] == 0:
+            if divmod(max_thinning, thinning)[1] == 0:
                 # when thinning divides the total number of scans in the last 
                 # round, the samples should capture the last state
                 pt_state = pt_sampler.pt_state
                 self.assertEqual(
-                    pt_state.samples['log_joint'][-1],
-                    pt_state.replica_states.log_joint[pt_state.chain_to_replica_idx[-1]]
+                    pt_state.samples['log_lik'][-1],
+                    pt_state.replica_states.log_lik[pt_state.chain_to_replica_idx[-1]]
                 )
 
 if __name__ == '__main__':
