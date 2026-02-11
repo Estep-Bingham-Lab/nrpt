@@ -41,7 +41,7 @@ def extract_sample(
         replica_states, 
         replica_idx,
         excluded_latent_vars,
-        extra_fields = ('log_prior', 'log_lik', 'log_joint'),
+        extra_fields = ('log_prior', 'log_lik'), # don't collect log joint as it is stale after swapping
     ):
     # grab the state of the requested replica
     target_replica_state = jax.tree.map(itemgetter(replica_idx), replica_states)
@@ -239,6 +239,12 @@ def pt_scan(
     ) = swaps.communication_step(
         kernel, pt_state, is_odd_scan, swap_group_actions
     )
+
+    # REMINDER: our swap mechanism forces `x` to stay in place, which means 
+    # that caches that only depend on `x` are valid after communication (e.g. 
+    # `log_prior` and `log_lik`). In contrast, anything that depends on beta or
+    # any aux var is best assumed to be stale (e.g. log_joint). See the comment
+    # on `communication_step` for more info.
 
     # store sample at target chain if requested
     # no-op if this is not the last round
