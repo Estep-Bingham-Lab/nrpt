@@ -6,6 +6,28 @@ import numpyro
 import numpyro.distributions as dist
 
 ##############################################################################
+# Conjugate normal model, true posterior is Normal(mu, v) with
+#   mu := m v
+#   v  := (1 + sigma0^{-2})^{-1}
+##############################################################################
+
+def toy_conjugate_normal(
+        d = jnp.int32(3), 
+        m = jnp.float32(2.), 
+        sigma0 = jnp.float32(2.)
+    ):
+    def model(sigma0, y):
+        with numpyro.plate('dim', len(y)):
+            x = numpyro.sample('x', dist.Normal(scale=sigma0))
+            numpyro.sample('obs', dist.Normal(x), obs=y)
+
+    # inputs
+    y = jnp.full((d,), m)
+    model_args = (sigma0, y)
+    model_kwargs = {}
+    return model, model_args, model_kwargs
+
+##############################################################################
 # classic Pigeons toy unidentifiable example
 ##############################################################################
 
@@ -52,27 +74,35 @@ def eight_schools_example():
     model_kwargs={'y': y}
     return (model, model_args, model_kwargs)
 
-##############################################################################
+###############################################################################
 # mRNA transfection example from Ballnus et al. (2017, dataset M1a)
 # https://doi.org/10.1186/s12918-017-0433-1
-##############################################################################
+###############################################################################
 
 # Expected value of the concentration at a time after the start of reaction
 #   m(t) = (km0/(delta-beta))[exp(-beta(t-t0)) - exp(-delta(t-t0))]
+# for km0,delta,beta,dt>0 and dt=t-t0. Note that this expression is
+#   - always non-negative
+#   - invariant to switching delta <-> beta, which is the reason for the 
+#     unidentifiability of the model
 # To avoid loss of precision from the `exp` difference, we can rewrite as
-#   (e^{-betaT}-e^{-deltaT}) = e^{-beta T}[1-exp{-(delta-beta)T}] =-e^{-beta T}expm1{-(delta-beta)T}
-#                            = e^{-deltaT}[exp{ (delta-beta)T}-1] = e^{-deltaT}expm1{ (delta-beta)T}
+#   (e^{-betaT}-e^{-deltaT}) 
+#   = e^{-beta T}[1-exp{-(delta-beta)T}] 
+#   =-e^{-beta T}expm1{-(delta-beta)T}
+# or as
+#   = e^{-deltaT}[exp{ (delta-beta)T}-1] 
+#   = e^{-deltaT}expm1{ (delta-beta)T}
 # Both expressions are valid. We use the first one when delta>beta, and the
 # second one otherwise. Since beta,delta>0, this approach ensures that both
-# exponentials have negative arguments and thus never blow up.
-def _mrna_mean_fn(km0, delta, beta, rel_ts):
-    diff = delta-beta
-    return (km0/diff)*lax.cond(
-        diff>0,
-        lambda t: -lax.exp(-t[1]*t[2])*lax.expm1(-t[3]*t[2]),
-        lambda t:  lax.exp(-t[0]*t[2])*lax.expm1( t[3]*t[2]),
-        (delta, beta, rel_ts, diff)
-    )
+# exponentials have negative arguments and thus never blow up. Finally, we
+# can write m(t) using a single expression
+#   m(t) = -(km0/|delta-beta|) e^{-min(delta,beta)T}expm1{ -|delta-beta|T}
+# This expression is also non-negative (the expm1 term is <=0) and invariant to
+# switching delta <-> beta
+def _mrna_mean_fn(km0, delta, beta, dt):
+    abs_diff = lax.abs(delta-beta)
+    exp_prod = lax.exp(-lax.min(delta,beta)*dt)*lax.expm1(-abs_diff*dt)
+    return -(km0/abs_diff)*exp_prod
 
 def _mrna(ts, ys=None):
     # priors
@@ -89,7 +119,7 @@ def _mrna(ts, ys=None):
     delta = 10. ** ldelta
     sigma = 10. ** lsigma
 
-    # likelihood: conditionally indep normals with mean
+    # likelihood: conditionally indep normals with varying means
     rel_ts = lax.max(jnp.zeros_like(ts), ts-t0)
     ms = _mrna_mean_fn(km0, delta, beta, rel_ts)
     with numpyro.plate('dim', len(ts)):
