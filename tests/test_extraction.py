@@ -1,12 +1,40 @@
 import unittest
 
-from jax import random
+import jax
+from jax import random, numpy as jnp
 
-from automcmc import autohmc, autorwmh
+from automcmc import autohmc, autorwmh, tempering
 
 from nrpt import initialization, sampling, toy_examples
 
 class TestExtraction(unittest.TestCase):
+
+    def test_extracted_log_prob_caches(self):
+        """
+        Check that the extracted `log_lik` and `log_prior` match the actual 
+        values recomputed on the collected samples
+        """
+        model, model_args, model_kwargs = toy_examples.toy_conjugate_normal()
+        kernel = autohmc.AutoMALA(model)
+        pt_sampler = initialization.PT(
+            kernel, 
+            rng_key = random.key(1),
+            n_replicas = 3,
+            n_refresh = 1,
+            model_args=model_args, 
+            model_kwargs=model_kwargs
+        )
+        pt_sampler = sampling.run(pt_sampler)
+        samples = pt_sampler.pt_state.samples
+
+        def vmap_fn(x):
+            return tempering.model_logprior_and_loglik(
+                model, model_args, model_kwargs, x
+            )
+
+        log_priors, log_liks = jax.vmap(vmap_fn)({'x': samples['x']}) # only pass the `x` var to avoid possible contamination
+        self.assertTrue(jnp.allclose(samples['log_lik'], log_liks))
+        self.assertTrue(jnp.allclose(samples['log_prior'], log_priors))
 
     def test_excluded_latent_vars(self):
         rng_key = random.key(123)
