@@ -1,3 +1,7 @@
+import csv
+import urllib.request
+import io
+
 from jax import lax
 from jax.scipy.special import betaln, digamma
 
@@ -130,17 +134,12 @@ def mrna():
     mRNA transfection time series model (dataset M1a) described in
     Ballnus et al. (2017).
     """
-    import csv
-    import urllib.request
-    import io
-
     url=(
         'https://raw.githubusercontent.com/Julia-Tempering/Pigeons.jl/refs/'
         'heads/main/examples/data/Ballnus_et_al_2017_M1a.csv'
     )
-    response = urllib.request.urlopen(url)
     reader = csv.reader(
-        io.StringIO(response.read().decode('utf-8')),
+        io.StringIO(urllib.request.urlopen(url).read().decode('utf-8')),
         quoting=csv.QUOTE_NONNUMERIC
     )
     dta = jnp.array([row for row in reader])
