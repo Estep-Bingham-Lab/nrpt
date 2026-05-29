@@ -1,3 +1,7 @@
+import csv
+import urllib.request
+import io
+
 from jax import lax
 from jax.scipy.special import betaln, digamma
 
@@ -12,8 +16,8 @@ import numpyro.distributions as dist
 ##############################################################################
 
 def toy_conjugate_normal(
-        d = jnp.int32(3), 
-        m = jnp.float32(2.), 
+        d = jnp.int32(3),
+        m = jnp.float32(2.),
         sigma0 = jnp.float32(2.)
     ):
     def model(sigma0, y):
@@ -58,7 +62,7 @@ def toy_unid_exact_logZ(n,y,inv_temp):
 ##############################################################################
 # eight schools example
 ##############################################################################
- 
+
 def __eight_schools(sigma, y=None):
     mu = numpyro.sample('mu', dist.Normal(0, 5))
     tau = numpyro.sample('tau', dist.HalfCauchy(5))
@@ -83,14 +87,14 @@ def eight_schools_example():
 #   m(t) = (km0/(delta-beta))[exp(-beta(t-t0)) - exp(-delta(t-t0))]
 # for km0,delta,beta,dt>0 and dt=t-t0. Note that this expression is
 #   - always non-negative
-#   - invariant to switching delta <-> beta, which is the reason for the 
+#   - invariant to switching delta <-> beta, which is the reason for the
 #     unidentifiability of the model
 # To avoid loss of precision from the `exp` difference, we can rewrite as
-#   (e^{-betaT}-e^{-deltaT}) 
-#   = e^{-beta T}[1-exp{-(delta-beta)T}] 
+#   (e^{-betaT}-e^{-deltaT})
+#   = e^{-beta T}[1-exp{-(delta-beta)T}]
 #   =-e^{-beta T}expm1{-(delta-beta)T}
 # or as
-#   = e^{-deltaT}[exp{ (delta-beta)T}-1] 
+#   = e^{-deltaT}[exp{ (delta-beta)T}-1]
 #   = e^{-deltaT}expm1{ (delta-beta)T}
 # Both expressions are valid. We use the first one when delta>beta, and the
 # second one otherwise. Since beta,delta>0, this approach ensures that both
@@ -127,17 +131,19 @@ def _mrna(ts, ys=None):
 
 def mrna():
     """
-    mRNA transfection time series model (dataset M1a) described in 
+    mRNA transfection time series model (dataset M1a) described in
     Ballnus et al. (2017).
     """
-    import pandas as pd
-    
-    # Load the data
-    dta = pd.read_csv(
-        'https://raw.githubusercontent.com/Julia-Tempering/Pigeons.jl/refs/heads/main/examples/data/Ballnus_et_al_2017_M1a.csv',
-        header=None
+    url=(
+        'https://raw.githubusercontent.com/Julia-Tempering/Pigeons.jl/refs/'
+        'heads/main/examples/data/Ballnus_et_al_2017_M1a.csv'
     )
+    reader = csv.reader(
+        io.StringIO(urllib.request.urlopen(url).read().decode('utf-8')),
+        quoting=csv.QUOTE_NONNUMERIC
+    )
+    dta = jnp.array([row for row in reader])
     model = _mrna
-    model_args = (jnp.array(dta[0]),)
-    model_kwargs={'ys': jnp.array(dta[1])}
+    model_args = (dta[:,0],)
+    model_kwargs={'ys': jnp.array(dta[:,1])}
     return (model, model_args, model_kwargs)

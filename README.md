@@ -11,9 +11,9 @@
 ## Installation
 
 **Optional**: if you want to run your NumPyro models on an accelerator (GPU/TPU),
-make sure to 
+make sure to
 [install the correct version of JAX](https://jax.readthedocs.io/en/latest/installation.html)
-before proceeding. Otherwise, the following will install the default, CPU-only 
+before proceeding. Otherwise, the following will install the default, CPU-only
 version of JAX.
 
 Using pip
@@ -24,34 +24,34 @@ pip install nrpt @ git+https://github.com/Estep-Bingham-Lab/nrpt.git
 
 ## Example usage
 
-**Note:** In the following we will require the additional packages `pandas` and 
-`corner`, which can be installed from common repositories.
+**Note:** the plot requires the package
+[`corner`](https://corner.readthedocs.io/en/latest/).
 
 To showcase the power of `nrpt`, we will analyze a challenging benchmark problem
-described in [Ballnus et al. 2017](https://doi.org/10.1186/s12918-017-0433-1). 
+described in [Ballnus et al. 2017](https://doi.org/10.1186/s12918-017-0433-1).
 The objective is to estimate the parameters of an Ordinary Differential Equation
-(ODE) given noisy observations of its solution. The ODE itself was described in 
+(ODE) given noisy observations of its solution. The ODE itself was described in
 [Leonhardt et al. 2014](https://doi.org/10.1016/j.nano.2013.11.008), while the
-Bayesian formulation of the inference problem is from 
+Bayesian formulation of the inference problem is from
 [Ballnus et al. 2017](https://doi.org/10.1186/s12918-017-0433-1). The latter
 shows an empirical comparison of several MCMC samplers on the ODE problem,
 indicating that schemes that used Parallel Tempering were the only ones able
-to accurately describe the posterior distribution. Indeed, its density is 
+to accurately describe the posterior distribution. Indeed, its density is
 bimodal and features narrow ridges.
 
-Here we will show that `nrpt` can leverage an automatically tuned 
+Here we will show that `nrpt` can leverage an automatically tuned
 sampler described in [Liu et al. (2025)](https://arxiv.org/abs/2410.18929)
 to tackle this inference task.
-For brevity, we won't go into the details of the model here; be sure to check 
-the references if you are curious. We also assume that you are familiar with 
-NRPT. Beyond the [original paper](https://doi.org/10.1111/rssb.12464), a good 
-reference is the documentation of the Julia package 
+For brevity, we won't go into the details of the model here; be sure to check
+the references if you are curious. We also assume that you are familiar with
+NRPT. Beyond the [original paper](https://doi.org/10.1111/rssb.12464), a good
+reference is the documentation of the Julia package
 [Pigeons.jl](https://pigeons.run/stable/); `nrpt` is heavily inspired by it.
 
-We will aim to reproduce Figure 6 in 
+We will aim to reproduce Figure 6 in
 [Ballnus et al. 2017](https://doi.org/10.1186/s12918-017-0433-1), which shows
 a corner plot of the posterior samples of the unknown parameters of the ODE.
-The model has been written in NumPyro and included in `nrpt`. 
+The model has been written in NumPyro and included in `nrpt`.
 We can load it along all the required dependencies using
 ```python
 from jax import random
@@ -72,13 +72,13 @@ import corner
 model, model_args, model_kwargs = toy_examples.mrna()
 ```
 `model` is a python function written using NumPyro primitives. This function
-takes as input the observation times -- contained in the tuple `model_args` -- 
+takes as input the observation times -- contained in the tuple `model_args` --
 and the noisy observations inside the `model_kwargs` dictionary.
 
 Following the NumPyro convention, we enclose the model in an MCMC sampler. In
 `nrpt`, this sampler will be used as the *explorer* in the NRPT terminology.
-Currently, `nrpt` only works with the MCMC samplers of the 
-[`automcmc` package](https://github.com/UBC-Stat-ML/automcmc). For this 
+Currently, `nrpt` only works with the MCMC samplers of the
+[`automcmc` package](https://github.com/UBC-Stat-ML/automcmc). For this
 example, we will use the AutoHMC sampler with the default 32 leapfrog steps.
 ```python
 kernel = autohmc.AutoHMC(model)
@@ -87,29 +87,29 @@ kernel = autohmc.AutoHMC(model)
 With the explorer in place, we can proceed to instantiate a `PTSampler` object
 ```python
 pt_sampler = initialization.PT(
-    kernel, 
+    kernel,
     rng_key = random.key(1),
     n_rounds = 14,
     n_replicas = 15,
     n_refresh = 2,
-    model_args=model_args, 
+    model_args=model_args,
     model_kwargs=model_kwargs
 )
 ```
-Note that the model arguments are passed to the constructor. There are 
+Note that the model arguments are passed to the constructor. There are
 several other settings being provided:
 
 - A JAX PRNG key, used to draw (pseudo-)random variates.
-- The number of NRPT rounds is set to 14, so that a total of 
+- The number of NRPT rounds is set to 14, so that a total of
 $2^{15}$=16384 samples -- corresponding to the last round -- are returned.
 - The number of replicas is set to 15, which is roughly 2.5 times the global
 barrier $\Lambda$ of the problem. This is the ideal minimum number of chains
 needed for NRPT to correctly bootstrap itself via adaptation. The number of
-replicas can be increased past this point until either device memory is 
-exhausted or until significant speed deterioration is observed. Of course, 
+replicas can be increased past this point until either device memory is
+exhausted or until significant speed deterioration is observed. Of course,
 since $\Lambda$ is a priori unknown, setting `n_replicas` requires some iteration.
 - The number of explorer refreshments within each exploration step is set to 2.
-This allows us to achieve a worse-case autocorrelation of the log-likelihood 
+This allows us to achieve a worse-case autocorrelation of the log-likelihood
 (across replicas) of less than 0.95.
 
 We can run NRPT typing (takes less than 5 minutes on an Nvidia RTX 2000 Ada
@@ -119,7 +119,7 @@ pt_sampler = sampling.run(pt_sampler)
 ```
 The above will produce an output similar to this
 ```
-  R |        Δt |       ETA |    Λ |      logZ | ρ (mean/max/amax) | newβ₁ | α (min/mean) | AC (mean/max) 
+  R |        Δt |       ETA |    Λ |      logZ | ρ (mean/max/amax) | newβ₁ | α (min/mean) | AC (mean/max)
 ----------------------------------------------------------------------------------------------------------
   1     0:00:12    54:56:08    3.9   -8.56e+02    0.28 / 0.92 / 12   1e-19    0.00 / 0.45    -0.30 / 1.33
   2     0:00:00     0:06:56    4.4   -7.83e+02    0.32 / 0.95 /  2   1e-05    0.32 / 0.56     0.54 / 1.00
@@ -140,25 +140,25 @@ From left to right, the figures shown here correspond to:
 
 - The round index
 - The duration of the round
-- The estimated time until sampling is completed. Note that this is very 
+- The estimated time until sampling is completed. Note that this is very
 inaccurate in the earlier rounds. It begins to stabilize roughly after round 7,
 depending on the complexity of the target.
-- Estimate of the global barrier, which at the last round is 
-$\Lambda \approx 6.2$. 
+- Estimate of the global barrier, which at the last round is
+$\Lambda \approx 6.2$.
 - Estimate of the log-normalization constant, which in the last round gives
 $\log(\mathcal{Z})\approx -370$.
 - Average and worst-case swap rejection probabilities. When the average is
 close to the maximum -- as in the last 3 rounds -- the ideal *equi-rejection*
 condition has been approximately attained.
-- The `amax` field in the previous column indicates the chain index that 
+- The `amax` field in the previous column indicates the chain index that
 shows the highest rejection probability. That is, when
 `amax=i`, it means that the swap between chains `i` and `i+1` shows the highest
-rejection rate. The next column shows the updated value of the first non-zero 
+rejection rate. The next column shows the updated value of the first non-zero
 inverse temperature. This helps with diagnosing high rejection rates for `amax=0`.
 - Average and worst-case explorer acceptance probabilities. If the explorer is
 working correctly along the path of distributions, we expect both values
 to be away from 0 and 1.
-- Average and worst-case autocorrelation (AC) of the log-likelihood before and 
+- Average and worst-case autocorrelation (AC) of the log-likelihood before and
 after the exploration steps. As described above, the number of refreshments
 was set so that the maximum was below 0.95. **Note**: the estimator does not
 behave well in small samples, which is why we can see autocorrelation values
@@ -220,8 +220,8 @@ figure.savefig('mrna_corner.png', bbox_inches='tight')
 
 Note that the posterior is clearly bimodal. Not only that, the shapes
 of these two modes are completely different. Moreover, there is a clear
-ridge visible in the $(\log_{10}(\beta),\log_{10}(\delta))$ plot. These 
-features make this problem extremely hard to tackle using traditional 
+ridge visible in the $(\log_{10}(\beta),\log_{10}(\delta))$ plot. These
+features make this problem extremely hard to tackle using traditional
 MCMC algorithms.
 
 
@@ -229,12 +229,12 @@ MCMC algorithms.
 
 ## References
 
-Syed, S., Bouchard-Côté, A., Deligiannidis, G., & Doucet, A. (2022). 
-[Non-reversible parallel tempering: a scalable highly parallel MCMC scheme](https://doi.org/10.1111/rssb.12464). 
+Syed, S., Bouchard-Côté, A., Deligiannidis, G., & Doucet, A. (2022).
+[Non-reversible parallel tempering: a scalable highly parallel MCMC scheme](https://doi.org/10.1111/rssb.12464).
 *Journal of the Royal Statistical Society Series B: Statistical Methodology*, 84(2), 321-350.
 
 Liu, T., Surjanovic, N., Biron-Lattes, M., Bouchard-Côté, A., & Campbell, T. (2024).
-[AutoStep: Locally adaptive involutive MCMC](https://arxiv.org/abs/2410.18929). 
+[AutoStep: Locally adaptive involutive MCMC](https://arxiv.org/abs/2410.18929).
 *arXiv preprint arXiv:2410.18929*. Accepted to ICML 2025.
 
 
