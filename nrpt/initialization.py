@@ -35,7 +35,7 @@ PTSampler = namedtuple(
     ],
 )
 """
-A :func:`~collections.namedtuple` defining a Parallel Tempering sampler. It 
+A :func:`~collections.namedtuple` defining a Parallel Tempering sampler. It
 consists of the fields:
 
  - **kernel** - the exploration kernel.
@@ -86,7 +86,7 @@ ensemble. It consists of the fields:
 # E: [0,1,2,3,4] -> identity perm
 #    [1,0,3,2,4] -> all swaps acc perm == even group action
 # O: [0,1,2,3,4] -> identity perm
-#    [0,2,1,4,3] -> all swaps acc perm == odd group action 
+#    [0,2,1,4,3] -> all swaps acc perm == odd group action
 # n_replicas=6:
 # E: [0,1,2,3,4,5] -> identity perm
 #    [1,0,3,2,5,4] -> all swaps acc perm == even group action
@@ -103,15 +103,15 @@ def init_swap_group_actions(n_replicas):
             i - 1 if i%2 else
             i + 1 if i<n_replicas-1 else
             i
-        ) 
+        )
         for i in range(n_replicas)
     ]
     idx_odd_group_action = [
         (
             min(i + 1, n_replicas-1) if i%2 else
             i - 1 if i > 0 else
-            i      
-        ) 
+            i
+        )
         for i in range(n_replicas)
     ]
     return jnp.array([idx_even_group_action, idx_odd_group_action])
@@ -122,8 +122,8 @@ def validate_initial_replica_states(kernel, replica_states):
 
     # compute log joint at the initial point
     # NOTE: this is not so kosher because it uses the base precond state, which
-    # is not the proper approach (must create a proper precond state via 
-    # `maybe_alter_precond_state`). However, this only happens once in the 
+    # is not the proper approach (must create a proper precond state via
+    # `maybe_alter_precond_state`). However, this only happens once in the
     # entire run, so it doesn't have any persistent effect. Moreover, it doesnt
     # have *any* effect for the FixedDense and FixedDiagonal precs.
     replica_states = jax.vmap(kernel.update_log_joint)(
@@ -133,7 +133,7 @@ def validate_initial_replica_states(kernel, replica_states):
     # check everything remains finite
     valid_initial_states = jax.tree.all(
         jax.tree.map(
-            lambda x: jnp.all(jnp.isfinite(x)), 
+            lambda x: jnp.all(jnp.isfinite(x)),
             replica_states
         )
     )
@@ -143,8 +143,8 @@ def validate_initial_replica_states(kernel, replica_states):
         raise RuntimeError(
             f"Found invalid initial replica states; dumping below\n{replica_states}"
         )
-    
-    # handle the case where the log likelihood term is int32(0), which occurs 
+
+    # handle the case where the log likelihood term is int32(0), which occurs
     # when a numpyro model has no `obs` sample statements
     if not jnp.issubdtype(replica_states.log_lik.dtype, jnp.floating):
         warnings.warn(
@@ -155,11 +155,11 @@ def validate_initial_replica_states(kernel, replica_states):
     return replica_states
 
 def init_replica_states(
-        kernel, 
-        rng_key, 
-        n_replicas, 
-        init_params, 
-        model_args, 
+        kernel,
+        rng_key,
+        n_replicas,
+        init_params,
+        model_args,
         model_kwargs
     ):
     # use the kernel initialization to get a prototypical state
@@ -170,7 +170,7 @@ def init_replica_states(
     # extend the prototypical state to all replicas
     replica_states = jax.tree.map(
         lambda xs: (
-            random.split(xs, n_replicas) 
+            random.split(xs, n_replicas)
             if is_prng_key(xs)
             else lax.broadcast(xs, (n_replicas,))
         ),
@@ -194,8 +194,8 @@ def init_schedule_log(replica_states, n_replicas):
         -jnp.log2(n_replicas-1).astype(replica_states.log_prior.dtype)
     )
     return jnp.insert(
-        2**jnp.linspace(log2_beta_1, 0, n_replicas-2,False), 
-        jnp.array([0, n_replicas]), 
+        2**jnp.linspace(log2_beta_1, 0, n_replicas-2,False),
+        jnp.array([0, n_replicas]),
         jnp.array([0, 1])
     )
 
@@ -203,8 +203,8 @@ def init_schedule(replica_states, n_replicas, initial_schedule):
     if isinstance(initial_schedule, ArrayLike):
         assert (
             initial_schedule.shape == (n_replicas,) and
-            initial_schedule[ 0] == 0 and 
-            initial_schedule[-1] == 1 and 
+            initial_schedule[ 0] == 0 and
+            initial_schedule[-1] == 1 and
             utils.is_increasing(initial_schedule)
         )
         inv_temp_schedule = initial_schedule
@@ -216,27 +216,27 @@ def init_schedule(replica_states, n_replicas, initial_schedule):
         raise ValueError(
             f"Don't know how to handle `initial_schedule`={initial_schedule}"
         )
-    
+
     # update the replica states and return
     # note: this assume that the initial permutation is the identity
     return replica_states._replace(inv_temp=inv_temp_schedule)
 
 
 def init_samples_container(
-        kernel, 
-        n_rounds, 
-        model_args, 
-        model_kwargs, 
+        kernel,
+        n_rounds,
+        model_args,
+        model_kwargs,
         replica_states,
         excluded_latent_vars,
         thinning
     ):
     # grab a generic replica state
     constrained_sample_with_extras = sampling.extract_sample(
-        kernel, 
-        model_args, 
-        model_kwargs, 
-        replica_states, 
+        kernel,
+        model_args,
+        model_kwargs,
+        replica_states,
         0,
         excluded_latent_vars
     )
@@ -245,20 +245,20 @@ def init_samples_container(
     n_stored_samples = sampling.n_scans_in_round(n_rounds) // thinning
     return jax.tree.map(
         lambda x: jnp.empty_like(
-            x, 
+            x,
             shape = (n_stored_samples, *x.shape),
         ),
         constrained_sample_with_extras
     )
 
 def init_pt_state(
-        kernel, 
-        rng_key, 
-        n_replicas, 
+        kernel,
+        rng_key,
+        n_replicas,
         n_rounds,
         init_params,
-        model_args, 
-        model_kwargs, 
+        model_args,
+        model_kwargs,
         collect_samples,
         initial_schedule,
         excluded_latent_vars
@@ -284,23 +284,23 @@ def init_pt_state(
     thinning = int(collect_samples)
     if collect_samples:
         samples = init_samples_container(
-            kernel, 
-            n_rounds, 
-            model_args, 
+            kernel,
+            n_rounds,
+            model_args,
             model_kwargs,
             replica_states,
             excluded_latent_vars,
             thinning
         )
-    else: 
+    else:
         samples = None
 
     # build the state object
     pt_state = PTState(
-        replica_states, 
-        replica_to_chain_idx, 
-        chain_to_replica_idx, 
-        rng_key, 
+        replica_states,
+        replica_to_chain_idx,
+        chain_to_replica_idx,
+        rng_key,
         stats,
         samples
     )
@@ -309,21 +309,21 @@ def init_pt_state(
 
 
 def PT(
-        kernel: MCMCKernel, 
-        rng_key: ArrayLike, 
-        n_replicas: int = 10, 
-        n_rounds: int = 10, 
+        kernel: MCMCKernel,
+        rng_key: ArrayLike,
+        n_replicas: int = 10,
+        n_rounds: int = 10,
         n_refresh: int = 3,
         init_params: Optional[dict] = None,
-        model_args: tuple = (), 
-        model_kwargs: dict = {},
+        model_args: tuple = (),
+        model_kwargs: Optional[dict] = None,
         collect_samples: bool | int = True,
         initial_schedule: str | ArrayLike = "log",
-        excluded_latent_vars: Iterable = {}
+        excluded_latent_vars: Optional[Iterable] = ()
     ) -> PTSampler:
     """
     Initialize a :class:`PTSampler`.
-    
+
     :param kernel: An MCMC sampler used as explorer.
     :param rng_key: A JAX PRNG key.
     :param n_replicas: Number of replicas to use.
@@ -335,11 +335,11 @@ def PT(
     :param model_args: Optional model arguments.
     :param model_kwargs: Optional model keyword arguments
     :param collect_samples: Whether to collect samples. If `int` and non-zero,
-        it is assumed to request thinning of the last round samples.  
-    :param initial_schedule: Settings for building the initial inverse 
+        it is assumed to request thinning of the last round samples.
+    :param initial_schedule: Settings for building the initial inverse
         temperature schedule. Can be a `str` equal to `'linear'` for linearly
         spaced schedule or `'log'` for logarithmically spaced (default). It can
-        also be a vector of length `n_replicas` corresponding to a valid 
+        also be a vector of length `n_replicas` corresponding to a valid
         inverse temperature schedule.
     :param excluded_latent_vars: Optional iterable of latent variables to
         exclude when storing a sample. This is useful to keep GPU memory in
@@ -347,25 +347,26 @@ def PT(
         in terms of memory usage.
     :return: An initialized :class:`PTSampler`.
     """
+    model_kwargs = {} if model_kwargs is None else model_kwargs
     swap_group_actions = init_swap_group_actions(n_replicas)
     pt_state, thinning = init_pt_state(
-        kernel, 
-        rng_key, 
-        n_replicas, 
+        kernel,
+        rng_key,
+        n_replicas,
         n_rounds,
         init_params,
-        model_args, 
-        model_kwargs, 
+        model_args,
+        model_kwargs,
         collect_samples,
         initial_schedule,
         excluded_latent_vars
     )
     return PTSampler(
-        kernel, 
-        pt_state, 
+        kernel,
+        pt_state,
         n_rounds,
-        n_refresh, 
-        model_args, 
+        n_refresh,
+        model_args,
         model_kwargs,
         swap_group_actions,
         frozenset(excluded_latent_vars),
